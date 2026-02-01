@@ -342,24 +342,3 @@ nevertheless, abundant / constitute
   <script type="module" src="app.js"></script>
 </body>
 </html>
-<!-- ====== ADDON: Light/Dark + CEFR Auto + Fullscreen Self-Test ====== -->
-<link rel="stylesheet" href="./addon-ui.css">
-
-<script src="./addon.js"></script>
-<!-- ====== /ADDON ====== -->
-<!-- ====== FORCE LOAD addon (mobile-safe, cache-bust) ====== -->
-<script>
-(function () {
-  var v = Date.now();
-  var link = document.createElement("link");
-  link.rel = "stylesheet";
-  link.href = "./addon-ui.css?v=" + v;
-  (document.head || document.documentElement).appendChild(link);
-
-  var s = document.createElement("script");
-  s.src = "./addon.js?v=" + v;
-  s.defer = true;
-  document.body.appendChild(s);
-})();
-</script>
-<!-- ====== /FORCE LOAD ====== -->
