@@ -1,0 +1,1203 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#111111" />
+  <link rel="manifest" href="manifest.json">
+  <title>単語plus</title>
+  <style>
+    :root { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif; }
+    body { margin: 16px; background:#fff; color:#111; }
+    .card { border: 1px solid #ddd; border-radius: 14px; padding: 12px; margin-bottom: 12px; background:#fff; }
+    input, button, textarea, select { font-size: 16px; padding: 10px 12px; border-radius: 12px; border: 1px solid #ccc; }
+    textarea { width: 100%; min-height: 120px; resize: vertical; }
+    button { border: none; background: #111; color: #fff; padding: 10px 14px; }
+    button.secondary { background: #f1f1f1; color: #111; border: 1px solid #ddd; }
+    button.danger { background:#c1121f; }
+    button.ghost { background: transparent; color:#111; border:1px solid #ddd; }
+    .row { display: flex; gap: 8px; align-items:center; flex-wrap:wrap; }
+    .row > * { flex: 1; }
+    .small { color: #666; font-size: 12px; }
+    .word { font-weight: 900; font-size: 18px; }
+    .meta { display:flex; gap:8px; flex-wrap:wrap; margin-top:6px; align-items:center; }
+    .tag { background:#f5f5f5; border:1px solid #e5e5e5; padding:3px 8px; border-radius:999px; font-size:12px; }
+    .pill { border-radius:999px; padding:6px 10px; border:1px solid #ddd; background:#fafafa; font-size:12px; display:inline-block; }
+    .lvl0{ background:#fff7ed; border-color:#fed7aa;}
+    .lvl1{ background:#eff6ff; border-color:#bfdbfe;}
+    .lvl2{ background:#ecfeff; border-color:#a5f3fc;}
+    .lvl3{ background:#ecfdf5; border-color:#a7f3d0;}
+    ul { margin: 8px 0 0 18px; }
+    li { margin: 4px 0; }
+
+    .tabs { display:flex; gap:8px; margin-bottom:12px; }
+    .tab { flex:1; text-align:center; padding:10px; border-radius:12px; border:1px solid #ddd; background:#f8f8f8; font-weight:800; }
+    .tab.active { background:#111; color:#fff; border-color:#111; }
+    .hidden { display:none; }
+
+    details { border:1px solid #eee; border-radius:12px; padding:10px; background:#fcfcfc; }
+    details summary { cursor:pointer; font-weight:800; }
+    details + details { margin-top:8px; }
+
+    .flashWord { font-size:28px; font-weight:900; letter-spacing:0.2px; }
+    .flashBox { min-height:160px; display:flex; flex-direction:column; gap:10px; justify-content:center; }
+    .center { text-align:center; }
+
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .bar { height:10px; border-radius:999px; background:#eee; overflow:hidden; }
+    .bar > div { height:10px; background:#111; width:0%; }
+
+    .stickyBottom {
+      position: sticky;
+      bottom: 12px;
+      z-index: 10;
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(6px);
+      border:1px solid #eee;
+      border-radius:14px;
+      padding:10px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="tabs">
+    <div class="tab active" id="tabListBtn">リスト</div>
+    <div class="tab" id="tabBulkBtn">貼る</div>
+    <div class="tab" id="tabFlashBtn">フラッシュ</div>
+    <div class="tab" id="tabOpsBtn">管理</div>
+  </div>
+
+  <!-- HEADER -->
+  <div class="card">
+    <div style="font-weight:900; font-size:18px;">単語plus</div>
+    <div class="small">単語を貼るだけで：意味・類語・日本語解説・例文を自動付与 → 保存。フラッシュは暗記度を自己判断で更新。</div>
+
+    <div style="height:10px"></div>
+
+    <div class="row">
+      <input id="quickInput" placeholder="単語1個でも複数でも貼れる（例: claim / nevertheless / abundant）" autocomplete="off" />
+      <button id="quickAddBtn">追加</button>
+    </div>
+
+    <div style="height:10px"></div>
+
+    <div class="row">
+      <input id="searchInput" placeholder="検索（単語/意味/日本語/メモ/タグ）" />
+      <button class="secondary" id="retryBtn">未取得 再取得</button>
+    </div>
+
+    <div class="small" style="margin-top:10px;">
+      保存：このブラウザ（localStorage）／共有リンク化：あとで Netlify/GitHub Pages へ置く（下に手順あり）
+    </div>
+  </div>
+
+  <!-- LIST -->
+  <div id="tabList">
+    <div class="card">
+      <div class="row">
+        <select id="levelFilter">
+          <option value="all">暗記度: 全部</option>
+          <option value="0">Lv0: まだ</option>
+          <option value="1">Lv1: あやふや</option>
+          <option value="2">Lv2: だいたい</option>
+          <option value="3">Lv3: 余裕</option>
+        </select>
+
+        <select id="dueFilter">
+          <option value="all">出題: 全部</option>
+          <option value="due">出題: 期限（Due）のみ</option>
+        </select>
+
+        <select id="sortSel">
+          <option value="new">並び: 新しい順</option>
+          <option value="due">並び: Due順</option>
+          <option value="level">並び: 暗記度順</option>
+        </select>
+
+        <button class="secondary" id="shuffleBtn">シャッフル</button>
+      </div>
+
+      <div style="height:10px"></div>
+
+      <div class="row">
+        <input id="tagFilter" placeholder="タグで絞る（例: #上智 #頻出）" />
+        <button class="secondary" id="clearFiltersBtn">絞り込み解除</button>
+      </div>
+
+      <div class="small" style="margin-top:8px;">
+        カードは折りたたみ。重いときは表示件数を下げる。
+      </div>
+
+      <div style="height:10px"></div>
+
+      <div class="row">
+        <select id="pageSizeSel">
+          <option value="30">表示: 30件</option>
+          <option value="60">表示: 60件</option>
+          <option value="120">表示: 120件</option>
+        </select>
+        <button class="secondary" id="moreBtn">続きを表示</button>
+      </div>
+    </div>
+
+    <div id="list"></div>
+  </div>
+
+  <!-- BULK -->
+  <div id="tabBulk" class="hidden">
+    <div class="card">
+      <div style="font-weight:900;">貼る（まとめ処理）</div>
+      <div class="small">改行／空白／カンマ／スラッシュ区切りに対応。貼った瞬間に解析して件数を出す。</div>
+      <div style="height:10px"></div>
+
+      <textarea id="bulkInput" placeholder="ここに単語をまとめて貼る
+claim
+nevertheless
+abundant, diminish / adhere to
+"></textarea>
+
+      <div style="height:10px"></div>
+
+      <div class="row">
+        <select id="bulkDefaultLevel">
+          <option value="0">追加時 暗記度：Lv0</option>
+          <option value="1">追加時 暗記度：Lv1</option>
+          <option value="2">追加時 暗記度：Lv2</option>
+          <option value="3">追加時 暗記度：Lv3</option>
+        </select>
+        <input id="bulkTags" placeholder="タグ（例: #上智 #頻出）" />
+      </div>
+
+      <div style="height:10px"></div>
+
+      <div class="row">
+        <button id="bulkAddBtn">まとめ追加</button>
+        <button class="secondary" id="bulkClearBtn">クリア</button>
+      </div>
+
+      <div style="height:10px"></div>
+
+      <div class="card" style="margin:0;">
+        <div class="small mono" id="bulkPreview">解析: 0語 / 新規: 0 / 既存: 0</div>
+        <div class="bar" style="margin-top:8px;"><div id="bulkBar"></div></div>
+        <div class="small" id="bulkProgress" style="margin-top:8px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FLASH -->
+  <div id="tabFlash" class="hidden">
+    <div class="card">
+      <div class="row">
+        <select id="flashMode">
+          <option value="en2ja">出題: 英→日（単語→日本語解説）</option>
+          <option value="ja2en">出題: 日→英（日本語→単語）</option>
+        </select>
+
+        <select id="flashLevelRange">
+          <option value="0-3">範囲: Lv0〜Lv3</option>
+          <option value="0-0">範囲: Lv0のみ</option>
+          <option value="0-1">範囲: Lv0〜Lv1</option>
+          <option value="1-2">範囲: Lv1〜Lv2</option>
+          <option value="2-3">範囲: Lv2〜Lv3</option>
+        </select>
+
+        <select id="flashDueOnly">
+          <option value="due">出題: Dueのみ</option>
+          <option value="all">出題: 全部</option>
+        </select>
+
+        <button class="secondary" id="flashStartBtn">開始</button>
+      </div>
+
+      <div class="small" style="margin-top:8px;">
+        評価を押すと暗記度が保存され、次回の出題タイミング（Due）も自動調整。
+      </div>
+    </div>
+
+    <div class="card flashBox center" id="flashCard">
+      <div class="small">開始で出題が始まる</div>
+    </div>
+
+    <div class="stickyBottom hidden" id="flashControls">
+      <div class="row">
+        <button class="secondary" id="revealBtn">答え表示</button>
+        <button class="secondary" id="nextBtn">次へ</button>
+      </div>
+      <div style="height:10px"></div>
+      <div class="row">
+        <button class="ghost" id="rate0">Lv0</button>
+        <button class="ghost" id="rate1">Lv1</button>
+        <button class="ghost" id="rate2">Lv2</button>
+        <button class="ghost" id="rate3">Lv3</button>
+      </div>
+      <div class="small" id="flashProgress" style="margin-top:8px;"></div>
+    </div>
+  </div>
+
+  <!-- OPS -->
+  <div id="tabOps" class="hidden">
+    <div class="card">
+      <div style="font-weight:900;">管理</div>
+      <div class="small">バックアップ・復元・CSV出力。共有リンク化はこの下の手順。</div>
+
+      <div style="height:10px"></div>
+
+      <div class="row">
+        <button class="secondary" id="exportJsonBtn">JSONエクスポート</button>
+        <button class="secondary" id="exportCsvBtn">CSVエクスポート</button>
+      </div>
+
+      <div style="height:10px"></div>
+
+      <div class="row">
+        <button class="secondary" id="importBtn">JSONインポート</button>
+        <button class="danger" id="clearBtn">全消去</button>
+      </div>
+
+      <div style="height:10px"></div>
+
+      <details>
+        <summary>共有リンク化（誰でも使えるURL）</summary>
+        <div class="small" style="margin-top:10px; line-height:1.7;">
+          いちばん速い：Netlify Drop（フォルダをアップロード→URL発行）<br/>
+          恒久：GitHub Pages（リポジトリ→公開URL）<br/>
+          どちらもこのページ（index.html / manifest.json / sw.js）を置くだけで動く。
+        </div>
+      </details>
+    </div>
+  </div>
+
+<script>
+/* =========================
+   設定
+========================= */
+const APP_VERSION = 3;
+const KEY = "tango_plus_v" + APP_VERSION;
+
+// 翻訳APIの無料枠を安定させたいとき、任意でメールを入れる（空でも動作）
+const MYMEMORY_EMAIL = "";
+
+// APIの負荷を抑える間隔（ms）
+const LOOKUP_GAP_MS = 140;
+
+// SRS: Lvごとの次回間隔（分）
+const SRS_MINUTES = {
+  0: 10,        // Lv0: 10分後にまた来る
+  1: 12 * 60,   // Lv1: 12時間
+  2: 3 * 24 * 60, // Lv2: 3日
+  3: 7 * 24 * 60  // Lv3: 7日
+};
+
+/* =========================
+   DOM
+========================= */
+const tabListBtn = document.getElementById("tabListBtn");
+const tabBulkBtn = document.getElementById("tabBulkBtn");
+const tabFlashBtn = document.getElementById("tabFlashBtn");
+const tabOpsBtn  = document.getElementById("tabOpsBtn");
+const tabList = document.getElementById("tabList");
+const tabBulk = document.getElementById("tabBulk");
+const tabFlash = document.getElementById("tabFlash");
+const tabOps = document.getElementById("tabOps");
+
+const quickInput = document.getElementById("quickInput");
+const quickAddBtn = document.getElementById("quickAddBtn");
+const searchInput = document.getElementById("searchInput");
+const retryBtn = document.getElementById("retryBtn");
+
+const levelFilter = document.getElementById("levelFilter");
+const dueFilter = document.getElementById("dueFilter");
+const sortSel = document.getElementById("sortSel");
+const tagFilter = document.getElementById("tagFilter");
+const clearFiltersBtn = document.getElementById("clearFiltersBtn");
+const shuffleBtn = document.getElementById("shuffleBtn");
+const pageSizeSel = document.getElementById("pageSizeSel");
+const moreBtn = document.getElementById("moreBtn");
+const listEl = document.getElementById("list");
+
+const bulkInput = document.getElementById("bulkInput");
+const bulkDefaultLevel = document.getElementById("bulkDefaultLevel");
+const bulkTags = document.getElementById("bulkTags");
+const bulkAddBtn = document.getElementById("bulkAddBtn");
+const bulkClearBtn = document.getElementById("bulkClearBtn");
+const bulkPreview = document.getElementById("bulkPreview");
+const bulkProgress = document.getElementById("bulkProgress");
+const bulkBar = document.getElementById("bulkBar");
+
+const flashMode = document.getElementById("flashMode");
+const flashLevelRange = document.getElementById("flashLevelRange");
+const flashDueOnly = document.getElementById("flashDueOnly");
+const flashStartBtn = document.getElementById("flashStartBtn");
+const flashCard = document.getElementById("flashCard");
+const flashControls = document.getElementById("flashControls");
+const revealBtn = document.getElementById("revealBtn");
+const nextBtn = document.getElementById("nextBtn");
+const rate0 = document.getElementById("rate0");
+const rate1 = document.getElementById("rate1");
+const rate2 = document.getElementById("rate2");
+const rate3 = document.getElementById("rate3");
+const flashProgress = document.getElementById("flashProgress");
+
+const exportJsonBtn = document.getElementById("exportJsonBtn");
+const exportCsvBtn = document.getElementById("exportCsvBtn");
+const importBtn = document.getElementById("importBtn");
+const clearBtn = document.getElementById("clearBtn");
+
+/* =========================
+   Storage
+========================= */
+function loadItems() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return [];
+    return arr.map(normalizeItem).filter(x => x.word);
+  } catch {
+    return [];
+  }
+}
+function saveItems() {
+  localStorage.setItem(KEY, JSON.stringify(items));
+}
+function normalizeItem(x) {
+  const now = Date.now();
+  const id = x.id || (String(now) + "_" + Math.random().toString(16).slice(2));
+  const level = Number.isFinite(Number(x.level)) ? Number(x.level) : 0;
+  const dueAt = Number.isFinite(Number(x.dueAt)) ? Number(x.dueAt) : now;
+  const stats = x.stats && typeof x.stats === "object" ? x.stats : {};
+  return {
+    id,
+    word: (x.word || "").trim(),
+    phonetic: x.phonetic || "",
+    meanings: Array.isArray(x.meanings) ? x.meanings : [],
+    firstDef: x.firstDef || "",
+    jp: x.jp || "",
+    synonyms: Array.isArray(x.synonyms) ? x.synonyms : [],
+    exampleEn: x.exampleEn || "",
+    exampleJa: x.exampleJa || "",
+    note: x.note || "",
+    tags: Array.isArray(x.tags) ? x.tags : parseTags(x.tags || ""),
+    level,
+    createdAt: Number.isFinite(Number(x.createdAt)) ? Number(x.createdAt) : now,
+    updatedAt: Number.isFinite(Number(x.updatedAt)) ? Number(x.updatedAt) : now,
+    dueAt,
+    pending: x.pending || null, // { stage: "meaning|jp|syn", lastError: "" }
+    stats: {
+      seen: Number.isFinite(Number(stats.seen)) ? Number(stats.seen) : 0,
+      rated: Number.isFinite(Number(stats.rated)) ? Number(stats.rated) : 0,
+      lastReviewedAt: Number.isFinite(Number(stats.lastReviewedAt)) ? Number(stats.lastReviewedAt) : 0
+    }
+  };
+}
+
+/* =========================
+   Parsing helpers
+========================= */
+function normalize(s){ return (s||"").toString().trim().toLowerCase(); }
+
+function escapeHtml(str) {
+  return (str || "").replace(/[&<>"']/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
+}
+function escapeAttr(str) { return escapeHtml(str).replace(/"/g, "&quot;"); }
+
+function parseTags(text) {
+  const t = (text || "").toString();
+  const arr = t.split(/\s+/).map(x => x.trim()).filter(Boolean);
+  const tags = [];
+  for (let w of arr) {
+    if (!w.startsWith("#")) w = "#" + w;
+    if (w === "#") continue;
+    tags.push(w);
+  }
+  // unique
+  return Array.from(new Set(tags.map(normalize))).map((k) => {
+    // 元の表記は # のみ保持で十分
+    return k.startsWith("#") ? k : "#" + k;
+  });
+}
+
+function uniqWordsFromText(text) {
+  const raw = (text || "")
+    .replace(/[，、]/g, ",")
+    .replace(/[／]/g, "/")
+    .split(/[\s,\/]+/g)
+    .map(x => x.trim())
+    .filter(Boolean);
+
+  const cleaned = raw
+    .map(w => w.replace(/^[^A-Za-z']+|[^A-Za-z'-]+$/g, "")) // edges
+    .filter(Boolean);
+
+  const seen = new Set();
+  const out = [];
+  for (const w of cleaned) {
+    const k = normalize(w);
+    if (!k) continue;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(w);
+  }
+  return out;
+}
+
+function levelInfo(lv) {
+  const map = {
+    0: { t:"Lv0: まだ", cls:"pill lvl0" },
+    1: { t:"Lv1: あやふや", cls:"pill lvl1" },
+    2: { t:"Lv2: だいたい", cls:"pill lvl2" },
+    3: { t:"Lv3: 余裕", cls:"pill lvl3" }
+  };
+  return map[lv] || map[0];
+}
+
+function nowDue(it) {
+  return (it.dueAt || 0) <= Date.now();
+}
+
+function rangeToMinMax(v){
+  const [a,b] = (v||"0-3").split("-").map(n => Number(n));
+  return { min: Math.min(a,b), max: Math.max(a,b) };
+}
+
+/* =========================
+   APIs
+========================= */
+// 英英辞書
+async function dictLookup(word) {
+  const url = "https://api.dictionaryapi.dev/api/v2/entries/en/" + encodeURIComponent(word);
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("dict");
+  const data = await res.json();
+  const entry = data?.[0];
+  const phonetic = entry?.phonetic || entry?.phonetics?.find(p => p?.text)?.text || "";
+  const meanings = [];
+  let exampleEn = "";
+
+  const mlist = entry?.meanings || [];
+  for (const m of mlist) {
+    const part = m?.partOfSpeech || "";
+    const defsAll = (m?.definitions || []).slice(0, 3);
+    const defs = defsAll.map(d => d?.definition).filter(Boolean);
+    if (defs.length) meanings.push({ part, defs });
+    if (!exampleEn) {
+      const ex = defsAll.find(d => d?.example)?.example;
+      if (ex) exampleEn = ex;
+    }
+    if (meanings.length >= 3) break;
+  }
+
+  const firstDef =
+    meanings?.[0]?.defs?.[0] ||
+    entry?.meanings?.[0]?.definitions?.[0]?.definition ||
+    "";
+
+  return { phonetic, meanings, firstDef, exampleEn };
+}
+
+// 類語
+async function fetchSynonyms(word, max = 10) {
+  const url = "https://api.datamuse.com/words?rel_syn=" + encodeURIComponent(word) + "&max=" + max;
+  const res = await fetch(url);
+  if (!res.ok) return [];
+  const data = await res.json();
+  return (data || []).map(x => x.word).filter(Boolean);
+}
+
+// 翻訳（英→日）
+async function translateToJa(text) {
+  const q = encodeURIComponent(text);
+  const de = MYMEMORY_EMAIL ? "&de=" + encodeURIComponent(MYMEMORY_EMAIL) : "";
+  const url = `https://api.mymemory.translated.net/get?q=${q}&langpair=en|ja${de}`;
+  const res = await fetch(url);
+  if (!res.ok) return "";
+  const data = await res.json();
+  return data?.responseData?.translatedText || "";
+}
+
+function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+/* =========================
+   Core add/update
+========================= */
+let items = loadItems();
+
+// 表示のページング
+let listLimit = Number(pageSizeSel.value || 30);
+let listShuffle = false;
+
+function findByWord(word) {
+  const k = normalize(word);
+  return items.find(it => normalize(it.word) === k);
+}
+
+function upsertItem(it) {
+  const idx = items.findIndex(x => x.id === it.id);
+  if (idx >= 0) items[idx] = it;
+  else items.unshift(it);
+}
+
+function computeNextDue(level) {
+  const mins = SRS_MINUTES[level] ?? 60;
+  return Date.now() + mins * 60 * 1000;
+}
+
+async function enrichItem(it) {
+  // まず辞書
+  try {
+    const d = await dictLookup(it.word);
+    it.phonetic = d.phonetic || it.phonetic;
+    it.meanings = d.meanings || it.meanings;
+    it.firstDef = d.firstDef || it.firstDef;
+    it.exampleEn = d.exampleEn || it.exampleEn;
+  } catch (e) {
+    it.pending = { stage: "dict", lastError: "dict" };
+    it.updatedAt = Date.now();
+    return it;
+  }
+
+  // 類語と日本語は並列
+  const tasks = [];
+  tasks.push((async () => {
+    try {
+      it.synonyms = await fetchSynonyms(it.word, 10);
+    } catch { /* keep */ }
+  })());
+
+  tasks.push((async () => {
+    try {
+      if (it.firstDef) it.jp = await translateToJa(it.firstDef);
+      if (it.exampleEn) it.exampleJa = await translateToJa(it.exampleEn);
+    } catch { /* keep */ }
+  })());
+
+  await Promise.all(tasks);
+
+  it.pending = null;
+  it.updatedAt = Date.now();
+  return it;
+}
+
+async function addWords(words, defaultLevel, tagsText, progressCb) {
+  const tags = parseTags(tagsText);
+  const unique = uniqWordsFromText(words.join("\n"));
+
+  let added = 0, skipped = 0;
+
+  for (let i = 0; i < unique.length; i++) {
+    const w = unique[i];
+    const exist = findByWord(w);
+    if (exist) {
+      // 既存にはタグだけ追加
+      const merged = Array.from(new Set([...(exist.tags||[]), ...tags].map(normalize))).map(t => t.startsWith("#") ? t : "#"+t);
+      exist.tags = merged;
+      exist.updatedAt = Date.now();
+      upsertItem(exist);
+      skipped++;
+      saveItems();
+      if (progressCb) progressCb({ i:i+1, total:unique.length, added, skipped, word:w });
+      continue;
+    }
+
+    const it = normalizeItem({
+      word: w,
+      level: Number(defaultLevel)||0,
+      tags,
+      dueAt: Date.now(), // 追加直後はDueにして即回せる
+      pending: { stage: "dict", lastError: "" }
+    });
+
+    upsertItem(it);
+    saveItems();
+
+    // enrich
+    await enrichItem(it);
+    saveItems();
+
+    added++;
+    if (progressCb) progressCb({ i:i+1, total:unique.length, added, skipped, word:w });
+
+    await sleep(LOOKUP_GAP_MS);
+  }
+
+  return { added, skipped, total: unique.length };
+}
+
+/* =========================
+   Render list
+========================= */
+function renderList() {
+  const q = normalize(searchInput.value);
+  const lv = levelFilter.value;
+  const due = dueFilter.value;
+  const tagQ = normalize(tagFilter.value);
+
+  let filtered = items;
+
+  if (lv !== "all") filtered = filtered.filter(it => String(it.level ?? 0) === String(lv));
+  if (due === "due") filtered = filtered.filter(it => nowDue(it));
+
+  if (tagQ) {
+    const want = parseTags(tagQ);
+    filtered = filtered.filter(it => {
+      const have = new Set((it.tags||[]).map(normalize));
+      return want.every(t => have.has(normalize(t)));
+    });
+  }
+
+  if (q) {
+    filtered = filtered.filter(it => {
+      const hay = normalize(
+        it.word + " " +
+        (it.note||"") + " " +
+        (it.jp||"") + " " +
+        (it.firstDef||"") + " " +
+        (it.meanings?.map(m => (m.part||"") + " " + (m.defs||[]).join(" ")).join(" ")||"") + " " +
+        (it.synonyms||[]).join(" ") + " " +
+        (it.tags||[]).join(" ")
+      );
+      return hay.includes(q);
+    });
+  }
+
+  // sort
+  if (sortSel.value === "new") {
+    filtered = [...filtered].sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
+  } else if (sortSel.value === "due") {
+    filtered = [...filtered].sort((a,b) => (a.dueAt||0) - (b.dueAt||0));
+  } else if (sortSel.value === "level") {
+    filtered = [...filtered].sort((a,b) => (a.level||0) - (b.level||0));
+  }
+
+  if (listShuffle) filtered = [...filtered].sort(() => Math.random() - 0.5);
+
+  const view = filtered.slice(0, listLimit);
+
+  listEl.innerHTML = "";
+
+  if (view.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "card";
+    empty.innerHTML = `<div class="small">対象が空っぽっぽい（検索・絞り込みを解除すると出る）</div>`;
+    listEl.appendChild(empty);
+    return;
+  }
+
+  for (const it of view) {
+    const lvInfo = levelInfo(Number(it.level ?? 0));
+    const dueText = nowDue(it) ? "Due: いま" : ("Due: " + new Date(it.dueAt).toLocaleString());
+    const tags = (it.tags||[]).length ? it.tags.join(" ") : "";
+
+    const meaningHtml = it.meanings?.length
+      ? it.meanings.map(m =>
+        `<div class="meta">${m.part ? `<span class="tag">${escapeHtml(m.part)}</span>` : ""}</div>
+         <ul>${(m.defs||[]).map(d => `<li>${escapeHtml(d)}</li>`).join("")}</ul>`
+      ).join("")
+      : `<div class="small">意味取得待ち：未取得 再取得で回収</div>`;
+
+    const synHtml = (it.synonyms && it.synonyms.length)
+      ? `<div class="meta"><span class="tag">類語</span><span class="small">${escapeHtml(it.synonyms.join(", "))}</span></div>`
+      : `<div class="small">類語：取得中/空</div>`;
+
+    const jpHtml = it.jp
+      ? `<div class="meta"><span class="tag">日本語解説</span></div><div>${escapeHtml(it.jp)}</div>`
+      : `<div class="small">日本語解説：取得中/空</div>`;
+
+    const exHtml = it.exampleEn
+      ? `<div class="meta"><span class="tag">例文</span><span class="small">${escapeHtml(it.exampleEn)}</span></div>
+         ${it.exampleJa ? `<div class="small">${escapeHtml(it.exampleJa)}</div>` : ""}`
+      : ``;
+
+    const card = document.createElement("div");
+    card.className = "card";
+
+    card.innerHTML = `
+      <div class="row">
+        <div style="flex:3;">
+          <div class="word">${escapeHtml(it.word)}</div>
+          <div class="small">${it.phonetic ? escapeHtml(it.phonetic) : ""}　${new Date(it.createdAt).toLocaleString()}</div>
+        </div>
+        <div style="flex:1; text-align:right;">
+          <span class="${lvInfo.cls}">${lvInfo.t}</span>
+          <div class="small" style="margin-top:6px;">${escapeHtml(dueText)}</div>
+        </div>
+      </div>
+
+      <div style="height:10px"></div>
+
+      <details>
+        <summary>意味・解説・類語</summary>
+        <div style="height:8px"></div>
+        ${meaningHtml}
+        <div style="height:8px"></div>
+        ${jpHtml}
+        <div style="height:8px"></div>
+        ${synHtml}
+        ${exHtml ? `<div style="height:8px"></div>${exHtml}` : ""}
+      </details>
+
+      <div style="height:10px"></div>
+
+      <details>
+        <summary>メモ・タグ</summary>
+        <div style="height:10px"></div>
+        <div class="row">
+          <input data-note="${it.id}" placeholder="メモ（日本語の語法・ニュアンスなど）" value="${escapeAttr(it.note||"")}">
+        </div>
+        <div style="height:10px"></div>
+        <div class="row">
+          <input data-tags="${it.id}" placeholder="#タグ（空白区切り）" value="${escapeAttr(tags)}">
+        </div>
+      </details>
+
+      <div style="height:10px"></div>
+
+      <div class="row">
+        <button class="ghost" data-lv="${it.id}" data-to="0">Lv0</button>
+        <button class="ghost" data-lv="${it.id}" data-to="1">Lv1</button>
+        <button class="ghost" data-lv="${it.id}" data-to="2">Lv2</button>
+        <button class="ghost" data-lv="${it.id}" data-to="3">Lv3</button>
+        <button class="secondary" data-due="${it.id}">Dueを今に</button>
+        <button class="secondary" data-del="${it.id}">削除</button>
+      </div>
+    `;
+
+    listEl.appendChild(card);
+  }
+
+  // handlers
+  document.querySelectorAll("input[data-note]").forEach(inp => {
+    inp.addEventListener("change", () => {
+      const id = inp.getAttribute("data-note");
+      const it = items.find(x => x.id === id);
+      if (!it) return;
+      it.note = inp.value;
+      it.updatedAt = Date.now();
+      saveItems();
+    });
+  });
+
+  document.querySelectorAll("input[data-tags]").forEach(inp => {
+    inp.addEventListener("change", () => {
+      const id = inp.getAttribute("data-tags");
+      const it = items.find(x => x.id === id);
+      if (!it) return;
+      it.tags = parseTags(inp.value);
+      it.updatedAt = Date.now();
+      saveItems();
+    });
+  });
+
+  document.querySelectorAll("[data-del]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-del");
+      items = items.filter(x => x.id !== id);
+      saveItems();
+      renderList();
+    });
+  });
+
+  document.querySelectorAll("[data-due]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-due");
+      const it = items.find(x => x.id === id);
+      if (!it) return;
+      it.dueAt = Date.now();
+      it.updatedAt = Date.now();
+      saveItems();
+      renderList();
+    });
+  });
+
+  document.querySelectorAll("[data-lv]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-lv");
+      const to = Number(btn.getAttribute("data-to"));
+      const it = items.find(x => x.id === id);
+      if (!it) return;
+      it.level = to;
+      it.stats.rated += 1;
+      it.stats.lastReviewedAt = Date.now();
+      it.dueAt = computeNextDue(to);
+      it.updatedAt = Date.now();
+      saveItems();
+      renderList();
+    });
+  });
+}
+
+/* =========================
+   Bulk preview
+========================= */
+function updateBulkPreview() {
+  const words = uniqWordsFromText(bulkInput.value || "");
+  let exist = 0, fresh = 0;
+  for (const w of words) {
+    if (findByWord(w)) exist++;
+    else fresh++;
+  }
+  bulkPreview.textContent = `解析: ${words.length}語 / 新規: ${fresh} / 既存: ${exist}`;
+}
+bulkInput.addEventListener("input", updateBulkPreview);
+
+/* =========================
+   Tabs
+========================= */
+function setTab(name) {
+  const isList = name==="list";
+  const isBulk = name==="bulk";
+  const isFlash = name==="flash";
+  const isOps  = name==="ops";
+
+  tabList.classList.toggle("hidden", !isList);
+  tabBulk.classList.toggle("hidden", !isBulk);
+  tabFlash.classList.toggle("hidden", !isFlash);
+  tabOps.classList.toggle("hidden", !isOps);
+
+  tabListBtn.classList.toggle("active", isList);
+  tabBulkBtn.classList.toggle("active", isBulk);
+  tabFlashBtn.classList.toggle("active", isFlash);
+  tabOpsBtn.classList.toggle("active", isOps);
+}
+tabListBtn.addEventListener("click", () => setTab("list"));
+tabBulkBtn.addEventListener("click", () => setTab("bulk"));
+tabFlashBtn.addEventListener("click", () => setTab("flash"));
+tabOpsBtn.addEventListener("click", () => setTab("ops"));
+
+/* =========================
+   Quick add
+========================= */
+async function quickAdd() {
+  const text = (quickInput.value || "").trim();
+  if (!text) return;
+
+  quickAddBtn.disabled = true;
+  quickAddBtn.textContent = "処理中…";
+
+  // 単体/複数を同じ扱いで処理
+  const words = uniqWordsFromText(text);
+  const defLv = 0;
+  const tagsText = "";
+
+  // 進捗は簡易表示
+  let lastMsg = "";
+  await addWords(words, defLv, tagsText, (p) => {
+    lastMsg = `進行: ${p.i}/${p.total} いま: ${p.word}（追加:${p.added} / 既存:${p.skipped}）`;
+  });
+
+  quickAddBtn.disabled = false;
+  quickAddBtn.textContent = "追加";
+  quickInput.value = "";
+
+  setTab("list");
+  renderList();
+}
+quickAddBtn.addEventListener("click", quickAdd);
+quickInput.addEventListener("keydown", (e) => { if (e.key === "Enter") quickAdd(); });
+
+/* =========================
+   Bulk add
+========================= */
+async function bulkAdd() {
+  const text = bulkInput.value || "";
+  const words = uniqWordsFromText(text);
+  if (words.length === 0) return;
+
+  const defLv = Number(bulkDefaultLevel.value||0);
+  const tagsText = bulkTags.value || "";
+
+  bulkAddBtn.disabled = true;
+  bulkAddBtn.textContent = "追加中…";
+  bulkProgress.textContent = "";
+  bulkBar.style.width = "0%";
+
+  await addWords(words, defLv, tagsText, (p) => {
+    const pct = Math.floor((p.i / p.total) * 100);
+    bulkBar.style.width = pct + "%";
+    bulkProgress.textContent = `進行: ${p.i}/${p.total}（${pct}%） いま: ${p.word} / 追加:${p.added} / 既存:${p.skipped}`;
+  });
+
+  bulkAddBtn.disabled = false;
+  bulkAddBtn.textContent = "まとめ追加";
+  bulkProgress.textContent += " / 完了";
+
+  renderList();
+  setTab("list");
+}
+bulkAddBtn.addEventListener("click", bulkAdd);
+bulkClearBtn.addEventListener("click", () => {
+  bulkInput.value = "";
+  bulkTags.value = "";
+  bulkProgress.textContent = "";
+  bulkBar.style.width = "0%";
+  updateBulkPreview();
+});
+
+/* =========================
+   Retry pending
+========================= */
+async function retryPending() {
+  const pend = items.filter(it => it.pending);
+  if (pend.length === 0) return;
+
+  retryBtn.disabled = true;
+  retryBtn.textContent = "再取得中…";
+
+  for (let i = 0; i < pend.length; i++) {
+    const it = pend[i];
+    await enrichItem(it);
+    saveItems();
+    await sleep(LOOKUP_GAP_MS);
+  }
+
+  retryBtn.disabled = false;
+  retryBtn.textContent = "未取得 再取得";
+  renderList();
+}
+retryBtn.addEventListener("click", retryPending);
+
+/* =========================
+   Filters
+========================= */
+searchInput.addEventListener("input", () => { listLimit = Number(pageSizeSel.value||30); renderList(); });
+levelFilter.addEventListener("change", () => { listLimit = Number(pageSizeSel.value||30); renderList(); });
+dueFilter.addEventListener("change", () => { listLimit = Number(pageSizeSel.value||30); renderList(); });
+sortSel.addEventListener("change", () => { listLimit = Number(pageSizeSel.value||30); renderList(); });
+tagFilter.addEventListener("input", () => { listLimit = Number(pageSizeSel.value||30); renderList(); });
+
+clearFiltersBtn.addEventListener("click", () => {
+  searchInput.value = "";
+  levelFilter.value = "all";
+  dueFilter.value = "all";
+  sortSel.value = "new";
+  tagFilter.value = "";
+  listShuffle = false;
+  shuffleBtn.textContent = "シャッフル";
+  listLimit = Number(pageSizeSel.value||30);
+  renderList();
+});
+
+shuffleBtn.addEventListener("click", () => {
+  listShuffle = !listShuffle;
+  shuffleBtn.textContent = listShuffle ? "固定" : "シャッフル";
+  renderList();
+});
+
+pageSizeSel.addEventListener("change", () => {
+  listLimit = Number(pageSizeSel.value||30);
+  renderList();
+});
+
+moreBtn.addEventListener("click", () => {
+  listLimit += Number(pageSizeSel.value||30);
+  renderList();
+});
+
+/* =========================
+   Flash (SRS)
+========================= */
+let flashQueue = [];
+let flashIndex = 0;
+let flashRevealed = false;
+
+function buildFlashQueue() {
+  const {min, max} = rangeToMinMax(flashLevelRange.value);
+  let pool = items.filter(it => {
+    const lv = Number(it.level ?? 0);
+    return lv >= min && lv <= max;
+  });
+
+  if (flashDueOnly.value === "due") pool = pool.filter(it => nowDue(it));
+
+  // 出題比率（Lv低めを多め）
+  const weighted = [];
+  for (const it of pool) {
+    const lv = Number(it.level ?? 0);
+    const weight = lv === 0 ? 6 : lv === 1 ? 3 : lv === 2 ? 1 : 0.5;
+    const n = Math.max(1, Math.floor(weight * 2));
+    for (let i = 0; i < n; i++) weighted.push(it);
+  }
+
+  // シャッフル
+  return weighted.sort(() => Math.random() - 0.5);
+}
+
+function flashRender() {
+  if (flashQueue.length === 0) {
+    flashCard.innerHTML = `<div class="small">出題対象が空っぽっぽい（Dueのみを外すか、単語を追加）</div>`;
+    flashControls.classList.add("hidden");
+    return;
+  }
+
+  const it = flashQueue[flashIndex];
+  it.stats.seen += 1;
+  saveItems();
+
+  const lvInfo = levelInfo(Number(it.level ?? 0));
+  const mode = flashMode.value;
+
+  const prompt =
+    mode === "en2ja"
+      ? `<div class="flashWord">${escapeHtml(it.word)}</div><div class="small">${it.phonetic ? escapeHtml(it.phonetic) : ""}</div>`
+      : `<div class="flashWord" style="font-size:20px; font-weight:900;">${escapeHtml(it.jp || it.firstDef || "（日本語解説が空）")}</div><div class="small">（この意味の英単語を思い出す）</div>`;
+
+  const answer =
+    mode === "en2ja"
+      ? `
+        <div style="text-align:left">
+          ${it.jp ? `<div class="meta"><span class="tag">日本語解説</span></div><div>${escapeHtml(it.jp)}</div>` : `<div class="small">日本語解説：空</div>`}
+          <div style="height:8px"></div>
+          ${it.meanings?.length ? it.meanings.map(m => `
+            <div class="meta">${m.part ? `<span class="tag">${escapeHtml(m.part)}</span>` : ""}</div>
+            <ul>${(m.defs||[]).map(d => `<li>${escapeHtml(d)}</li>`).join("")}</ul>
+          `).join("") : `<div class="small">意味：空</div>`}
+          ${(it.synonyms||[]).length ? `<div style="height:8px"></div><div class="meta"><span class="tag">類語</span><span class="small">${escapeHtml(it.synonyms.join(", "))}</span></div>` : ``}
+          ${it.exampleEn ? `<div style="height:8px"></div><div class="meta"><span class="tag">例文</span><span class="small">${escapeHtml(it.exampleEn)}</span></div>${it.exampleJa ? `<div class="small">${escapeHtml(it.exampleJa)}</div>` : ``}` : ``}
+        </div>`
+      : `<div class="flashWord">${escapeHtml(it.word)}</div><div class="small">${it.phonetic ? escapeHtml(it.phonetic) : ""}</div>`;
+
+  flashCard.innerHTML = `
+    <div class="${lvInfo.cls}">${lvInfo.t}</div>
+    <div style="height:10px"></div>
+    ${prompt}
+    <div style="height:12px"></div>
+    ${flashRevealed ? answer : `<div class="small">（答え表示で答えを出す）</div>`}
+  `;
+
+  flashControls.classList.remove("hidden");
+  flashProgress.textContent = `進行: ${flashIndex+1}/${flashQueue.length}　Due: ${nowDue(it) ? "いま" : new Date(it.dueAt).toLocaleString()}`;
+}
+
+function flashStart() {
+  flashQueue = buildFlashQueue();
+  flashIndex = 0;
+  flashRevealed = false;
+  flashRender();
+}
+
+function flashNext() {
+  if (flashQueue.length === 0) return;
+  flashIndex = (flashIndex + 1) % flashQueue.length;
+  flashRevealed = false;
+  flashRender();
+}
+
+function flashReveal() {
+  flashRevealed = true;
+  flashRender();
+}
+
+function flashRate(toLv) {
+  if (flashQueue.length === 0) return;
+  const it = flashQueue[flashIndex];
+
+  // master更新
+  const master = items.find(x => x.id === it.id);
+  if (master) {
+    master.level = Number(toLv);
+    master.stats.rated += 1;
+    master.stats.lastReviewedAt = Date.now();
+    master.dueAt = computeNextDue(Number(toLv));
+    master.updatedAt = Date.now();
+    saveItems();
+  }
+
+  // queue item sync
+  it.level = Number(toLv);
+  it.dueAt = master ? master.dueAt : it.dueAt;
+
+  flashNext();
+}
+
+flashStartBtn.addEventListener("click", () => { setTab("flash"); flashStart(); });
+revealBtn.addEventListener("click", flashReveal);
+nextBtn.addEventListener("click", flashNext);
+rate0.addEventListener("click", () => flashRate(0));
+rate1.addEventListener("click", () => flashRate(1));
+rate2.addEventListener("click", () => flashRate(2));
+rate3.addEventListener("click", () => flashRate(3));
+
+/* =========================
+   Export / Import
+========================= */
+function downloadText(filename, text) {
+  const blob = new Blob([text], {type:"text/plain;charset=utf-8"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+exportJsonBtn.addEventListener("click", () => {
+  const data = JSON.stringify(items, null, 2);
+  downloadText("tango_plus_backup.json", data);
+});
+
+function toCsvValue(s) {
+  const t = (s ?? "").toString().replaceAll('"','""');
+  return `"${t}"`;
+}
+exportCsvBtn.addEventListener("click", () => {
+  const header = ["word","level","dueAt","jp","firstDef","synonyms","exampleEn","exampleJa","note","tags","createdAt"].join(",");
+  const rows = items.map(it => [
+    toCsvValue(it.word),
+    toCsvValue(String(it.level ?? 0)),
+    toCsvValue(new Date(it.dueAt||0).toLocaleString()),
+    toCsvValue(it.jp||""),
+    toCsvValue(it.firstDef||""),
+    toCsvValue((it.synonyms||[]).join(" ")),
+    toCsvValue(it.exampleEn||""),
+    toCsvValue(it.exampleJa||""),
+    toCsvValue(it.note||""),
+    toCsvValue((it.tags||[]).join(" ")),
+    toCsvValue(new Date(it.createdAt||0).toLocaleString())
+  ].join(","));
+  downloadText("tango_plus.csv", [header, ...rows].join("\n"));
+});
+
+importBtn.addEventListener("click", async () => {
+  const txt = window.prompt("JSONを貼り付けて復元（tango_plus_backup.jsonの中身）");
+  if (!txt) return;
+  try {
+    const arr = JSON.parse(txt);
+    if (!Array.isArray(arr)) throw new Error();
+    items = arr.map(normalizeItem).filter(x => x.word);
+    saveItems();
+    renderList();
+    alert("復元完了");
+  } catch {
+    alert("形式が合うJSONを貼ると復元が進む");
+  }
+});
+
+clearBtn.addEventListener("click", () => {
+  const ok = confirm("全消去（元に戻せない）");
+  if (!ok) return;
+  items = [];
+  saveItems();
+  renderList();
+});
+
+/* =========================
+   PWA Service Worker
+========================= */
+(async () => {
+  if ("serviceWorker" in navigator) {
+    try { await navigator.serviceWorker.register("./sw.js"); } catch {}
+  }
+})();
+
+/* =========================
+   Init
+========================= */
+updateBulkPreview();
+renderList();
+</script>
+</body>
+</html>
