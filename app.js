@@ -854,3 +854,45 @@ function syncTutDots(){
 /* ---------- quick fixes for “dead buttons” ---------- */
 /* ここは重要：overlayやscrollでタップが拾えない事故を潰す */
 document.addEventListener("touchstart", ()=>{}, {passive:true});
+
+// ===== Emergency tutorial escape (絶対詰まない保険) =====
+(function tutorialFailsafe(){
+  const $ = (s)=>document.querySelector(s);
+
+  function hideTutorial(){
+    const t = $("#tuto") || $("#tutorial") || document.querySelector("[data-tutorial]");
+    if (t) t.style.display = "none";
+    document.documentElement.style.overflow = "";
+    document.body.style.overflow = "";
+  }
+
+  // 1) 3秒後に強制解除（JSの他部分が死んでも脱出できる）
+  setTimeout(hideTutorial, 3000);
+
+  // 2) どこでも長押し(600ms)で解除
+  let pressTimer = null;
+  window.addEventListener("pointerdown", () => {
+    pressTimer = setTimeout(hideTutorial, 600);
+  }, {capture:true});
+  window.addEventListener("pointerup", () => {
+    if (pressTimer) clearTimeout(pressTimer);
+    pressTimer = null;
+  }, {capture:true});
+  window.addEventListener("pointercancel", () => {
+    if (pressTimer) clearTimeout(pressTimer);
+    pressTimer = null;
+  }, {capture:true});
+
+  // 3) スキップ/完了/閉じる系ボタンを“捕まえて”確実に効かせる
+  const ids = ["skip","done","closeTutorial","tutoSkip","tutoDone"];
+  ids.forEach(id=>{
+    const el = document.getElementById(id);
+    if (el) el.addEventListener("click", hideTutorial, {capture:true});
+  });
+
+  // 4) ボタンに data-skip / data-done が付いてる場合も拾う
+  document.addEventListener("click", (e)=>{
+    const target = e.target.closest?.("[data-skip],[data-done],[data-close]");
+    if (target) hideTutorial();
+  }, {capture:true});
+})();
