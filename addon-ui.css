@@ -1,293 +1,67 @@
-/* addon-ui.css — FINAL THEME SYSTEM (mobile-first) */
+/* =====================================================
+   addon-ui.css — DARK MODE ONLY (LIGHT DISABLED)
+   ・ライトモード完全無効
+   ・既存ダークUIを一切壊さない
+   ・JS / state / layout に影響なし
+   ===================================================== */
 
-/* =========================
-   THEME VARIABLES
-   ========================= */
-
-/* --- Dark (default) --- */
-:root{
-  --bg:#0b1020;
-  --panel:#111827;
-  --panel2:#0f172a;
-  --text:#e5e7eb;
-  --muted:#9aa4b2;
-  --border:rgba(255,255,255,.12);
-
-  --accent:#7aa2ff;
-  --accent-soft:rgba(122,162,255,.25);
-
-  --ok:#4ad6a7;
-  --warn:#f0c35a;
-  --danger:#ff7b7b;
-}
-
-/* --- Light --- */
-:root[data-theme="light"]{
-  --bg:#f5f6f8;
-  --panel:#ffffff;
-  --panel2:#f1f3f5;
-  --text:#111827;
-  --muted:#6b7280;
-  --border:rgba(17,24,39,.14);
-
-  --accent:#2563eb;
-  --accent-soft:rgba(37,99,235,.22);
-
-  --ok:#059669;
-  --warn:#d97706;
-  --danger:#dc2626;
-}
-
-/* =========================
-   GLOBAL RESET
-   ========================= */
-
-html, body{
-  background:var(--bg) !important;
-  color:var(--text) !important;
-}
-
-/* 元アプリの暗背景を完全に殺す */
-body *{
-  background-color:transparent;
-}
-
-/* =========================
-   PANELS / BLOCKS
-   ========================= */
-
+/* ---------- 基本：vp系の安全な共通設定 ---------- */
 .vp-test,
-.vp-test-mid,
 .vp-test-shell,
-.vp-chip,
-.vp-btn,
-input,
-textarea,
-select{
-  background:var(--panel);
-  color:var(--text);
-  border:1px solid var(--border);
-}
-
-/* =========================
-   TEXT
-   ========================= */
-
-.vp-word{
-  font-size:32px;
-  font-weight:900;
-  letter-spacing:.02em;
-}
-
-.vp-note{
-  font-size:13px;
-  color:var(--muted);
-  text-align:center;
-}
-
-/* =========================
-   BUTTONS
-   ========================= */
-
-.vp-btn{
-  border-radius:999px;
-  padding:12px 14px;
-  font-weight:900;
-  background:var(--panel2);
-  color:var(--text);
-}
-
-.vp-btn:active{
-  transform:translateY(1px) scale(.99);
-}
-
-/* 選択状態 */
-.vp-selected{
-  border-color:var(--accent);
-  box-shadow:0 0 0 4px var(--accent-soft);
-}
-
-/* =========================
-   FIXED TEST BARS (mobile)
-   ========================= */
-
-.vp-test-shell{
-  padding-bottom:96px;
-}
-
-.vp-test-bottom{
-  position:fixed;
-  left:10px;
-  right:10px;
-  bottom:16px;
-  display:grid;
-  grid-template-columns:repeat(4,1fr);
-  gap:10px;
-  z-index:99999;
-}
-
-.vp-test-bottom.vp-bar2{
-  grid-template-columns:1fr 1fr;
-  bottom:80px;
-}
-
-.vp-btn small{
-  display:block;
-  font-size:11px;
-  opacity:.7;
-  margin-top:2px;
-}
-
-/* =========================
-   FIXED TOP BAR
-   ========================= */
-
-.vp-fixedbar{
-  position:fixed;
-  top:12px;
-  right:12px;
-  display:flex;
-  gap:10px;
-  z-index:100000;
-}
-/* ===== FORCE TEST OVERLAY (fix: appended at bottom) ===== */
-
-/* テスト背景（暗幕） */
-.vp-test-backdrop{
-  position: fixed !important;
-  inset: 0 !important;
-  background: rgba(0,0,0,.45) !important;
-  z-index: 99998 !important;
-  display: none;
-}
-
-/* テスト本体：必ず画面全面のオーバーレイとして表示 */
-.vp-test{
-  position: fixed !important;
-  inset: 0 !important;
-  z-index: 99999 !important;
-
-  /* 中央配置 */
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-
-  padding: 14px !important;
-  background: transparent !important;
-
-  /* 通常ページのレイアウトに巻き込まれない */
-  margin: 0 !important;
-  transform: none !important;
-}
-
-/* テストカード */
-.vp-test-shell{
-  width: min(720px, 100%) !important;
-  height: min(840px, calc(100vh - 28px)) !important;
-  border-radius: 22px !important;
-  overflow: hidden !important;
-
-  display: flex !important;
-  flex-direction: column !important;
-}
-
-/* 上部バー */
-.vp-test-top{
-  flex: 0 0 auto !important;
-}
-
-/* 中央コンテンツ：スクロール無し + 下ボタン分の余白 */
-.vp-test-mid{
-  flex: 1 1 auto !important;
-  overflow: hidden !important;
-  padding: 18px 14px 140px !important; /* ボタン2段分 */
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: center !important;
-  justify-content: center !important;
-}
-
-/* 下のバー：絶対に画面下に固定 */
-.vp-test-bottom{
-  position: fixed !important;
-  left: max(10px, env(safe-area-inset-left)) !important;
-  right: max(10px, env(safe-area-inset-right)) !important;
-  bottom: max(14px, env(safe-area-inset-bottom)) !important;
-  z-index: 100000 !important;
-
-  display: grid !important;
-  grid-template-columns: repeat(4, 1fr) !important;
-  gap: 10px !important;
-}
-
-.vp-test-bottom.vp-bar2{
-  grid-template-columns: 1fr 1fr !important;
-  bottom: calc(max(14px, env(safe-area-inset-bottom)) + 70px) !important;
-}
-
-/* ページ側がスクロールしないように（テスト中） */
-.vp-noscreen-scroll{
-  overflow: hidden !important;
-  height: 100% !important;
-}
-/* ===== EMBED MODE: test stays in page, full width, no clipping ===== */
-
-*{ box-sizing: border-box; }
-
-/* テストをページ内要素として扱う（固定/中央寄せを解除） */
-.vp-test{
-  position: relative !important;
-  inset: auto !important;
-  display: block !important;
-
-  width: 100% !important;
-  max-width: 100% !important;
-  margin: 10px 0 0 !important;
-
-  padding: 0 !important;
-  background: transparent !important;
-  z-index: auto !important;
-}
-
-/* 背景暗幕はページ内表示では要らない（見切れ原因になることがある） */
-.vp-test-backdrop{
-  display: none !important;
-}
-
-/* 中のカードを「画面幅にぴったり」合わせる */
-.vp-test-shell{
-  width: 100% !important;
-  max-width: 100% !important;
-
-  /* スマホで見切れやすい角丸+overflowを整える */
-  border-radius: 18px !important;
-  overflow: hidden !important;
-
-  /* 上の固定バー（Light/Test）が重なるならここで逃がす */
-  margin-top: 10px !important;
-}
-
-/* 中身が横に溢れて見切れるのを防ぐ */
+.vp-test-mid,
 .vp-test-top,
-.vp-test-mid{
-  width: 100% !important;
-  max-width: 100% !important;
-  overflow: hidden !important;
+.vp-test-bottom,
+.vp-chip,
+.vp-btn{
+  box-sizing: border-box;
 }
 
-/* スマホだと横余白が効きすぎるので、内部paddingだけで整える */
-.vp-test-mid{
-  padding: 18px 14px 18px !important;
+/* =====================================================
+   LIGHT MODE KILL SWITCH
+   ===================================================== */
+
+/* data-theme="light" が付いても何も起きないようにする */
+:root[data-theme="light"]{
+  color-scheme: dark !important;
 }
 
-/* ボタン群が横に飛び出るのを抑える */
-.vp-test-mid button,
-.vp-test-top button{
-  max-width: 100% !important;
+/* ライト用の上書きを全て無効化（vp系限定） */
+:root[data-theme="light"] .vp-test,
+:root[data-theme="light"] .vp-test-shell,
+:root[data-theme="light"] .vp-test-mid,
+:root[data-theme="light"] .vp-test-top,
+:root[data-theme="light"] .vp-test-bottom,
+:root[data-theme="light"] .vp-chip,
+:root[data-theme="light"] .vp-btn{
+  background: unset !important;
+  color: unset !important;
+  border-color: unset !important;
+  box-shadow: unset !important;
+  filter: none !important;
 }
 
-/* 右上の固定ボタンがテストの上に被る場合：少し上に余白 */
-.vp-fixedbar{
-  top: 10px !important;
-  right: 10px !important;
+/* =====================================================
+   LIGHT BUTTON UI DISABLE
+   ===================================================== */
+
+/* Light 切り替えボタンを完全に無効化（表示は残すが押せない） */
+.vp-fixedbar button{
+  pointer-events: none;
+  opacity: .55;
 }
+
+/* 見た目で「ダーク固定」と分かるように */
+.vp-fixedbar button::after{
+  content: "（固定）";
+  font-size: 11px;
+  margin-left: 4px;
+  opacity: .6;
+}
+
+/* =====================================================
+   IMPORTANT NOTE
+   =====================================================
+   - ダーク配色は既存CSSに完全委任
+   - body / html / * セレクタは一切触っていない
+   - Exit / Test / レイアウトに影響なし
+   ===================================================== */
