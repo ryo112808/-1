@@ -1,213 +1,137 @@
-/* addon-ui.css (REWRITE)
-   - Eye-safe dark/light themes
-   - Minimal, exam-tool friendly
-   - No “inversion look”
+/* addon-ui.css (MOBILE WINS)
+   - light/dark toggle
+   - force override original UI styles
+   - keep it readable on phone
 */
 
 :root{
-  /* Dark theme (long-session friendly) */
-  --bg:#0b1020;
-  --panel:#0f172a;
-  --panel2:#111c33;
-  --text:#e5e7eb;
-  --muted:#9aa4b2;
-  --border:rgba(255,255,255,.10);
-
-  /* Semantic colors (muted, not neon) */
-  --accent:#7aa2ff;
-  --ok:#4ad6a7;
-  --warn:#f0c35a;
-  --danger:#ff7b7b;
-
-  /* Shadow */
-  --shadow: 0 10px 30px rgba(0,0,0,.35);
+  --bg:#0b1020; --panel:#0f172a; --panel2:#111c33;
+  --text:#e5e7eb; --muted:#9aa4b2; --border:rgba(255,255,255,.10);
+  --accent:#7aa2ff; --ok:#4ad6a7; --warn:#f0c35a; --danger:#ff7b7b;
+  --shadow:0 10px 30px rgba(0,0,0,.35);
 }
 
-/* Light theme (NOT pure white, NOT neon) */
 :root[data-theme="light"]{
-  --bg:#f3f4f6;              /* soft gray, not white */
-  --panel:#ffffff;           /* card */
-  --panel2:#f9fafb;          /* subtle fill */
-  --text:#111827;            /* slate-900 */
-  --muted:#6b7280;           /* gray-500 */
-  --border:rgba(17,24,39,.10);
-
-  --accent:#2563eb;          /* blue-600 */
-  --ok:#059669;              /* green-600 */
-  --warn:#d97706;            /* amber-600 */
-  --danger:#dc2626;          /* red-600 */
-
-  --shadow: 0 10px 30px rgba(17,24,39,.10);
+  --bg:#f3f4f6; --panel:#ffffff; --panel2:#f9fafb;
+  --text:#111827; --muted:#6b7280; --border:rgba(17,24,39,.12);
+  --accent:#2563eb; --ok:#059669; --warn:#d97706; --danger:#dc2626;
+  --shadow:0 10px 30px rgba(17,24,39,.10);
 }
 
 html, body{
-  background: var(--bg);
-  color: var(--text);
+  background:var(--bg) !important;
+  color:var(--text) !important;
 }
 
-/* Avoid global weirdness: we keep your layout intact. */
-
-/* Optional: prevent screen scroll when test is open */
-html.vp-noscreen-scroll, body.vp-noscreen-scroll{
-  height:100vh;
-  overflow:hidden;
+/* ===== MUST-WIN override for original app ===== */
+:root[data-theme="light"] body{
+  background:var(--bg) !important;
+  color:var(--text) !important;
 }
 
-/* ===== Fixed buttons (top-right) ===== */
+/* だいたいの暗背景指定を“無効化”して明るくする */
+:root[data-theme="light"] body *{
+  color:var(--text) !important;
+  border-color:var(--border) !important;
+  box-shadow:none !important;
+}
+
+/* 元UIのパネルっぽい要素を白系に寄せる */
+:root[data-theme="light"] body div,
+:root[data-theme="light"] body section,
+:root[data-theme="light"] body main,
+:root[data-theme="light"] body header,
+:root[data-theme="light"] body footer,
+:root[data-theme="light"] body nav,
+:root[data-theme="light"] body article,
+:root[data-theme="light"] body aside{
+  background-color:transparent !important;
+}
+
+/* 入力系 */
+:root[data-theme="light"] input,
+:root[data-theme="light"] textarea,
+:root[data-theme="light"] select{
+  background:var(--panel) !important;
+  color:var(--text) !important;
+  border:1px solid var(--border) !important;
+}
+
+/* ボタン */
+:root[data-theme="light"] button{
+  background:var(--panel2) !important;
+  color:var(--text) !important;
+  border:1px solid var(--border) !important;
+}
+
+/* ===== fixed buttons ===== */
 .vp-fixedbar{
-  position:fixed;
-  right:12px;
-  top:12px;
-  z-index:99999;
-  display:flex;
-  gap:10px;
+  position:fixed; right:12px; top:12px; z-index:99999;
+  display:flex; gap:10px;
 }
-
 .vp-btn{
   border:1px solid var(--border);
-  background: var(--panel2);
-  color: var(--text);
-  border-radius: 999px;
-  padding: 10px 12px;
-  font-weight: 900;
-  font-size: 13px;
-  box-shadow: var(--shadow);
-  cursor:pointer;
-  user-select:none;
+  background:var(--panel2);
+  color:var(--text);
+  border-radius:999px;
+  padding:10px 12px;
+  font-weight:900;
+  font-size:13px;
+  box-shadow:var(--shadow);
 }
 
-.vp-btn:active{ transform: translateY(1px); }
+/* ===== fullscreen test ===== */
+html.vp-noscreen-scroll, body.vp-noscreen-scroll{ height:100vh; overflow:hidden; }
 
-/* ===== CEFR badge ===== */
-.vp-cefr{
-  display:inline-flex;
-  align-items:center;
-  padding: 3px 8px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  font-size: 12px;
-  font-weight: 900;
-  margin-left: 8px;
-  background: var(--panel2);
-}
-
-/* Tone per level (muted, readable in both themes) */
-.vp-A{ color: var(--muted); }
-.vp-B1{ color: var(--accent); }
-.vp-B2{ color: var(--warn); }
-.vp-C{ color: var(--danger); }
-
-/* ===== Fullscreen Test Overlay (no scroll) ===== */
 .vp-test-backdrop{
-  position:fixed;
-  inset:0;
-  background: rgba(0,0,0,.55);
-  z-index:99998;
-  display:none;
+  position:fixed; inset:0;
+  background:rgba(0,0,0,.55);
+  z-index:99998; display:none;
 }
-
-:root[data-theme="light"] .vp-test-backdrop{
-  background: rgba(17,24,39,.30);
-}
+:root[data-theme="light"] .vp-test-backdrop{ background:rgba(17,24,39,.30); }
 
 .vp-test{
-  position:fixed;
-  inset:0;
-  z-index:99999;
-  display:none;
-  background: var(--bg);
+  position:fixed; inset:0;
+  z-index:99999; display:none;
+  background:var(--bg);
 }
-
-.vp-test *{ box-sizing:border-box; }
-
 .vp-test-shell{
-  height:100vh;
-  display:flex;
-  flex-direction:column;
-  padding: 14px;
-  gap: 12px;
+  height:100vh; display:flex; flex-direction:column;
+  padding:14px; gap:12px;
 }
-
-.vp-test-top{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:10px;
-  flex-wrap:wrap;
-}
-
-/* Chips (status pills) */
 .vp-chip{
   border:1px solid var(--border);
-  background: var(--panel2);
-  border-radius: 999px;
-  padding: 6px 10px;
-  font-size: 12px;
-  font-weight: 900;
-  color: var(--text);
+  background:var(--panel2);
+  border-radius:999px;
+  padding:6px 10px;
+  font-size:12px; font-weight:900;
 }
+.vp-chip b{ color:var(--accent); }
 
-.vp-chip b{ color: var(--accent); }
-
-/* Keyboard hint */
-.vp-kbd{
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
-  padding: 3px 7px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--panel2);
-  color: var(--text);
-}
-
-/* Main stage (centered, no overflow) */
 .vp-test-mid{
-  flex: 1;
-  display:flex;
-  flex-direction:column;
-  justify-content:center;
-  align-items:center;
-  gap: 10px;
-
-  border:1px solid var(--border);
-  border-radius: 18px;
-  padding: 16px;
-
-  background: var(--panel);
-  box-shadow: var(--shadow);
-
-  overflow:hidden;
-}
-
-.vp-word{
-  font-size: 34px;
-  font-weight: 1000;
-  letter-spacing: .3px;
-  text-align:center;
-  line-height: 1.12;
-  word-break: break-word;
-}
-
-.vp-answer{
-  font-size: 20px;
-  font-weight: 900;
-  text-align:center;
-  color: var(--ok);
-  display:none;
-}
-
-.vp-note{
-  font-size: 12px;
-  color: var(--muted);
-  text-align:center;
-  line-height: 1.35;
-  max-width: 56ch;
-}
-
-/* Bottom controls */
-.vp-test-bottom{
-  display:flex;
-  flex-wrap:wrap;
+  flex:1;
+  display:flex; flex-direction:column;
+  justify-content:center; align-items:center;
   gap:10px;
-  justify-content:center;
+  border:1px solid var(--border);
+  border-radius:18px;
+  padding:16px;
+  background:var(--panel);
+}
+.vp-word{ font-size:34px; font-weight:1000; text-align:center; }
+.vp-answer{ font-size:20px; font-weight:900; color:var(--ok); display:none; text-align:center; }
+.vp-note{ font-size:12px; color:var(--muted); text-align:center; line-height:1.35; }
+.vp-test-bottom{ display:flex; flex-wrap:wrap; gap:10px; justify-content:center; }
+.vp-kbd{
+  font-family:ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size:12px; padding:3px 7px;
+  border-radius:8px; border:1px solid var(--border);
+  background:var(--panel2);
+}
+
+/* Mobile: bigger touch targets */
+@media (max-width: 520px){
+  .vp-btn{ padding: 12px 14px; font-size: 14px; }
+  .vp-test-bottom .vp-btn{ min-width: 64px; }
+  .vp-word{ font-size: 36px; }
 }
