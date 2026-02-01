@@ -347,3 +347,19 @@ nevertheless, abundant / constitute
 
 <script src="./addon.js"></script>
 <!-- ====== /ADDON ====== -->
+<!-- ====== FORCE LOAD addon (mobile-safe, cache-bust) ====== -->
+<script>
+(function () {
+  var v = Date.now();
+  var link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = "./addon-ui.css?v=" + v;
+  (document.head || document.documentElement).appendChild(link);
+
+  var s = document.createElement("script");
+  s.src = "./addon.js?v=" + v;
+  s.defer = true;
+  document.body.appendChild(s);
+})();
+</script>
+<!-- ====== /FORCE LOAD ====== -->
