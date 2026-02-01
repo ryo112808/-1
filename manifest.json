@@ -1,13 +1,14 @@
 {
   "name": "単語plus",
   "short_name": "単語plus",
-  "start_url": ".",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#111111",
+  "background_color": "#0b0f14",
+  "theme_color": "#0b0f14",
   "icons": [
     {
-      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAsElEQVR4nO3YwQmDQBRA0a5w/3c0QFQm0aQ3wz2m3m8mJk0g2m9c+gS0m8gkAAAAAAAAAAAAAAADgZp0v8m9gX8o2o3oJw4Y0m3gqg0dX8oUq8o1q0j0rZb8u0c8gq6m0cQy0m0Qkq8o0gQ9m2wQx4q0cQkq8o0gQ9m2wQx4q0cQkq8o0gQ9m2wQx4q0cQkq8o0gQ9m2wQx4o/0m8b6r4m1c8AAAAAAAAAAAAAAAB4nQHkGQ0o8mQxOQAAAABJRU5ErkJggg==",
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAS0lEQVR4nO3PQQ0AIBDAsAP/nuGNAvZoFSzZJk2SJEkSJEkSJEkSJEkSJEkSJEkSJEkSJEkSJEkSJEkSJEkS9gHfQwJ5u1q1mQAAAABJRU5ErkJggg==",
       "sizes": "64x64",
       "type": "image/png"
     }
