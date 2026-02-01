@@ -1,0 +1,150 @@
+/* addon-ui.css */
+:root{
+  --bg:#0b0f1a; --panel:#0f172a; --text:#e5e7eb; --muted:#94a3b8; --border:rgba(255,255,255,.08);
+  --accent:#60a5fa; --warn:#fbbf24; --danger:#f87171; --ok:#34d399;
+}
+:root[data-theme="light"]{
+  --bg:#f7f7fb; --panel:#ffffff; --text:#0f172a; --muted:#475569; --border:rgba(2,6,23,.12);
+  --accent:#2563eb; --warn:#d97706; --danger:#dc2626; --ok:#059669;
+}
+
+html, body{ background:var(--bg); color:var(--text); }
+
+/* “全体スクロール”を抑える（必要ならON） */
+html.vp-noscreen-scroll, body.vp-noscreen-scroll{
+  height:100vh;
+  overflow:hidden;
+}
+
+/* 固定ボタン */
+.vp-fixedbar{
+  position:fixed;
+  right:12px;
+  top:12px;
+  z-index:99999;
+  display:flex;
+  gap:10px;
+}
+.vp-btn{
+  border:1px solid var(--border);
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  color:var(--text);
+  border-radius:999px;
+  padding:10px 12px;
+  font-weight:900;
+  font-size:13px;
+  backdrop-filter: blur(10px);
+}
+
+/* CEFR badge */
+.vp-cefr{
+  display:inline-flex;
+  align-items:center;
+  padding:3px 8px;
+  border-radius:999px;
+  border:1px solid var(--border);
+  font-size:12px;
+  font-weight:900;
+  margin-left:8px;
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+}
+.vp-A{ color:var(--muted); }
+.vp-B1{ color:var(--accent); }
+.vp-B2{ color:var(--warn); }
+.vp-C{ color:var(--danger); }
+
+/* Fullscreen Test Overlay */
+.vp-test-backdrop{
+  position:fixed; inset:0;
+  background: rgba(0,0,0,.55);
+  z-index:99998;
+  display:none;
+}
+:root[data-theme="light"] .vp-test-backdrop{ background: rgba(2,6,23,.38); }
+
+.vp-test{
+  position:fixed; inset:0;
+  z-index:99999;
+  display:none;
+  background:var(--bg);
+}
+.vp-test *{ box-sizing:border-box; }
+
+.vp-test-shell{
+  height:100vh;
+  display:flex;
+  flex-direction:column;
+  padding:14px;
+  gap:12px;
+}
+
+/* 上段：ステータス */
+.vp-test-top{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+.vp-chip{
+  border:1px solid var(--border);
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  border-radius:999px;
+  padding:6px 10px;
+  font-size:12px;
+  font-weight:900;
+  color:var(--text);
+}
+.vp-chip b{ color:var(--accent); }
+
+/* 中段：問題表示（スクロール無しで収まるよう設計） */
+.vp-test-mid{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  align-items:center;
+  gap:10px;
+  border:1px solid var(--border);
+  border-radius:18px;
+  padding:16px;
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  overflow:hidden;
+}
+.vp-word{
+  font-size:32px;
+  font-weight:1000;
+  letter-spacing:.4px;
+  text-align:center;
+  line-height:1.1;
+  word-break:break-word;
+}
+.vp-answer{
+  font-size:20px;
+  font-weight:900;
+  text-align:center;
+  color:var(--ok);
+  display:none;
+}
+.vp-note{
+  font-size:12px;
+  color:var(--muted);
+  text-align:center;
+  line-height:1.35;
+  max-width:56ch;
+}
+
+/* 下段：操作 */
+.vp-test-bottom{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  justify-content:center;
+}
+.vp-kbd{
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size:12px;
+  padding:3px 7px;
+  border-radius:8px;
+  border:1px solid var(--border);
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+}
