@@ -1,536 +1,653 @@
-(() => {
-  "use strict";
+import {
+  KEYS, now, clamp, esc, normWord, splitWords,
+  mkItem, loadItems, saveItems, loadBackup, isDue, parseTagQuery
+} from "./storage.js";
+import { createFetcher } from "./fetch.js";
+import { createFlash } from "./flash.js";
 
-  const KEY = "tango_plus_v2_data";
-  const TRASH_KEY = "tango_plus_v2_trash";
-  const THEME_KEY = "tango_plus_v2_theme";
-  const TOUR_SEEN = "tango_plus_v2_tour_seen";
+// PWA
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("./sw.js").catch(()=>{});
+}
 
-  const $ = (id) => document.getElementById(id);
+// ===== State =====
+let items = loadItems();
 
-  const safeOn = (el, ev, fn) => {
-    if (!el) return;
-    el.addEventListener(ev, (e) => {
-      try { fn(e); } catch (err) { console.error(err); toast("内部エラー：再読み込みして"); }
-    }, { passive: false });
-  };
+// ===== UI refs =====
+const tabBtns = [...document.querySelectorAll(".tabBtn")];
+const secs = {
+  list: document.getElementById("sec_list"),
+  paste: document.getElementById("sec_paste"),
+  flash: document.getElementById("sec_flash"),
+  manage: document.getElementById("sec_manage"),
+};
 
-  const toast = (msg) => {
-    // 超軽量トースト
-    let t = document.querySelector(".toast");
-    if (!t) {
-      t = document.createElement("div");
-      t.className = "toast";
-      t.style.position = "fixed";
-      t.style.left = "12px";
-      t.style.right = "12px";
-      t.style.bottom = "16px";
-      t.style.zIndex = "1000";
-      t.style.padding = "12px 14px";
-      t.style.borderRadius = "14px";
-      t.style.fontWeight = "800";
-      t.style.border = "1px solid var(--line)";
-      t.style.background = "var(--card)";
-      t.style.boxShadow = "var(--shadow)";
-      document.body.appendChild(t);
+const search = document.getElementById("search");
+const clearSearch = document.getElementById("clearSearch");
+
+const sort = document.getElementById("sort");
+const levelFilter = document.getElementById("levelFilter");
+const scope = document.getElementById("scope");
+const pageSize = document.getElementById("pageSize");
+
+const listEl = document.getElementById("list");
+const moreBtn = document.getElementById("moreBtn");
+const countNow = document.getElementById("countNow");
+
+const pasteArea = document.getElementById("pasteArea");
+const bulkAdd = document.getElementById("bulkAdd");
+const pasteDemo = document.getElementById("pasteDemo");
+const oneWord = document.getElementById("oneWord");
+const oneAdd = document.getElementById("oneAdd");
+
+const retryMissing = document.getElementById("retryMissing");
+const retryFailed = document.getElementById("retryFailed");
+
+const qWait = document.getElementById("qWait");
+const qRun = document.getElementById("qRun");
+const qOk = document.getElementById("qOk");
+const qFail = document.getElementById("qFail");
+
+const mJa = document.getElementById("mJa");
+const mDef = document.getElementById("mDef");
+const mSyn = document.getElementById("mSyn");
+const mEx = document.getElementById("mEx");
+
+const exportBtn = document.getElementById("exportBtn");
+const importBtn = document.getElementById("importBtn");
+const backupBtn = document.getElementById("backupBtn");
+
+const restoreAll = document.getElementById("restoreAll");
+const emptyTrashHold = document.getElementById("emptyTrashHold");
+const holdHint = document.getElementById("holdHint");
+const softClear = document.getElementById("softClear");
+const trashList = document.getElementById("trashList");
+
+const kAll = document.getElementById("kAll");
+const kTrash = document.getElementById("kTrash");
+const kDue = document.getElementById("kDue");
+
+const toastEl = document.getElementById("toast");
+const toastMsg = document.getElementById("toastMsg");
+const toastSub = document.getElementById("toastSub");
+const toastUndo = document.getElementById("toastUndo");
+const toastClose = document.getElementById("toastClose");
+
+const ruleSheet = document.getElementById("ruleSheet");
+const openRules = document.getElementById("openRules");
+const closeRules = document.getElementById("closeRules");
+
+const tutorial = document.getElementById("tutorial");
+const tutSkip = document.getElementById("tutSkip");
+const tutPrev = document.getElementById("tutPrev");
+const tutNext = document.getElementById("tutNext");
+const tutPageTitle = document.getElementById("tutPageTitle");
+const tutPageBody = document.getElementById("tutPageBody");
+const openTutorial = document.getElementById("openTutorial");
+
+// ===== Toast / Undo =====
+let undoTimer = 0;
+let undoSnapshot = null;
+
+function toast(msg, sub = "", snapshot = null){
+  toastMsg.textContent = msg;
+  toastSub.textContent = sub;
+  undoSnapshot = snapshot;
+  toastUndo.style.display = snapshot ? "inline-flex" : "none";
+  toastEl.classList.add("show");
+
+  clearTimeout(undoTimer);
+  undoTimer = setTimeout(() => {
+    toastEl.classList.remove("show");
+    undoSnapshot = null;
+  }, 10000);
+}
+
+toastUndo.addEventListener("click", () => {
+  if (!undoSnapshot) return;
+  items = undoSnapshot;
+  saveItems(items);
+  renderAll();
+  toastEl.classList.remove("show");
+  undoSnapshot = null;
+});
+toastClose.addEventListener("click", () => {
+  toastEl.classList.remove("show");
+  undoSnapshot = null;
+});
+
+// ===== Helpers =====
+const activeItems = () => items.filter(it => !it.deletedAt);
+const trashItems = () => items.filter(it => !!it.deletedAt);
+
+function setItems(next){
+  items = next;
+  saveItems(items);
+}
+
+function fieldChip(it, key, label){
+  const st = it.fetch?.[key]?.status || "idle";
+  const cls = st === "ok" ? "ok" : st === "fail" ? "bad" : st === "pending" ? "wait" : "";
+  const text = st === "ok" ? "✓" : st === "fail" ? "×" : st === "pending" ? "…" : "–";
+  return `<span class="chip ${cls}"><span class="dot"></span>${label} ${text}</span>`;
+}
+
+// ===== Fetcher =====
+const fetcher = createFetcher({
+  getItems: () => items,
+  setItems: (x) => setItems(x),
+  onUpdateKPI: () => renderKPIs(),
+  toast,
+});
+
+// ===== Flash =====
+const flash = createFlash({
+  getItems: () => items,
+  save: () => saveItems(items),
+  renderKPIs: () => renderKPIs(),
+});
+
+// ===== Tabs =====
+function setTab(name){
+  tabBtns.forEach(b => b.classList.toggle("active", b.dataset.tab === name));
+  Object.entries(secs).forEach(([k,el]) => el.classList.toggle("active", k===name));
+  if (name === "flash") flash.rebuild();
+  renderAll();
+}
+tabBtns.forEach(b => b.addEventListener("click", () => setTab(b.dataset.tab)));
+
+// ===== Search / filters =====
+let shown = 0;
+
+function applyFilters(list){
+  const qraw = (search.value || "").trim().toLowerCase();
+  const { tags, plain } = parseTagQuery(qraw);
+
+  let out = list.slice();
+
+  if (levelFilter.value !== "all") out = out.filter(it => String(it.level) === levelFilter.value);
+  if (scope.value === "due") out = out.filter(isDue);
+
+  if (tags.length){
+    out = out.filter(it => {
+      const all = new Set([...(it.tags||[]), ...(it.autoTags||[])]);
+      return tags.every(t => all.has(t));
+    });
+  }
+
+  if (plain){
+    out = out.filter(it => {
+      const hay = (
+        it.word + " " +
+        (it.jaText||"") + " " +
+        (it.defText||"") + " " +
+        (it.synText||"") + " " +
+        (it.exText||"") + " " +
+        (it.note||"") + " " +
+        (it.tags||[]).join(" ") + " " +
+        (it.autoTags||[]).join(" ")
+      ).toLowerCase();
+      return hay.includes(plain);
+    });
+  }
+
+  if (sort.value === "new") out.sort((a,b)=>b.createdAt-a.createdAt);
+  if (sort.value === "old") out.sort((a,b)=>a.createdAt-b.createdAt);
+  if (sort.value === "due") out.sort((a,b)=>(a.dueAt||0)-(b.dueAt||0));
+  if (sort.value === "az") out.sort((a,b)=>a.word.localeCompare(b.word));
+
+  return out;
+}
+
+function renderKPIs(){
+  const qs = fetcher.getQueueStats();
+  qWait.textContent = qs.waiting;
+  qRun.textContent = qs.running;
+  qOk.textContent = qs.ok;
+  qFail.textContent = qs.fail;
+
+  const a = activeItems();
+  let ja=0, def=0, syn=0, ex=0;
+  for (const it of a){
+    if ((it.jaText||"").trim() === "") ja++;
+    if (it.fetch?.def?.status !== "ok") def++;
+    if (it.fetch?.syn?.status !== "ok") syn++;
+    if (it.fetch?.ex?.status !== "ok") ex++;
+  }
+  mJa.textContent = ja;
+  mDef.textContent = def;
+  mSyn.textContent = syn;
+  mEx.textContent = ex;
+
+  kAll.textContent = a.length;
+  kTrash.textContent = trashItems().length;
+  kDue.textContent = a.filter(isDue).length;
+}
+
+function renderList(){
+  const base = applyFilters(activeItems());
+  const size = Number(pageSize.value || 30);
+  if (shown === 0) shown = size;
+
+  const slice = base.slice(0, shown);
+  countNow.textContent = base.length;
+
+  listEl.innerHTML = "";
+  if (!slice.length){
+    listEl.innerHTML = `<div class="card"><div class="small">対象が空。</div></div>`;
+    moreBtn.style.display = "none";
+    return;
+  }
+
+  for (const it of slice){
+    const dueTxt = isDue(it) ? "期限：いま" : "期限：" + new Date(it.dueAt).toLocaleDateString();
+    const err = it.lastError ? `<div class="small" style="margin-top:6px;color:rgba(255,59,48,.9)">失敗理由：${esc(it.lastError)}</div>` : "";
+
+    const tagChips = [...new Set([...(it.autoTags||[]).map(t=>"auto:"+t), ...(it.tags||[]).map(t=>"tag:"+t)])]
+      .slice(0, 12)
+      .map(t => {
+        const label = t.startsWith("auto:") ? t.slice(5) : t.slice(4);
+        return `<span class="chip">#${esc(label)}</span>`;
+      }).join(" ");
+
+    const html = `
+      <div class="card">
+        <div class="wordLine">
+          <div>
+            <div class="word">${esc(it.word)}</div>
+            <div class="small">${esc(it.phonetic||"")}　${dueTxt}　/　作成 ${new Date(it.createdAt).toLocaleString()}</div>
+          </div>
+          <span class="chip"><span class="dot"></span>暗記度 ${it.level}</span>
+        </div>
+
+        <div class="meta" style="margin-top:10px">
+          ${fieldChip(it,"ja","和訳")}
+          ${fieldChip(it,"def","定義")}
+          ${fieldChip(it,"syn","類語")}
+          ${fieldChip(it,"ex","例文")}
+          ${isDue(it) ? `<span class="chip wait"><span class="dot"></span>期限</span>` : ``}
+        </div>
+
+        ${err}
+
+        <div style="height:10px"></div>
+        <details>
+          <summary>詳細 / 編集</summary>
+          <div style="margin-top:10px" class="two">
+            <div>
+              <div class="small">和訳</div>
+              <div style="font-weight:900;margin-top:4px">${esc(it.jaText || "—")}</div>
+
+              <div style="height:10px"></div>
+              <div class="small">英語定義</div>
+              <div style="font-weight:850;margin-top:4px">${esc(it.defText || "—")}</div>
+
+              <div style="height:10px"></div>
+              <div class="small">類語</div>
+              <div style="font-weight:850;margin-top:4px">${esc(it.synText || "—")}</div>
+
+              <div style="height:10px"></div>
+              <div class="small">例文</div>
+              <div style="font-weight:850;margin-top:4px">${esc(it.exText || "—")}</div>
+            </div>
+
+            <div>
+              <div class="small">メモ</div>
+              <input data-note="${it.id}" placeholder="メモ（任意）" value="${esc(it.note||"")}" />
+              <div style="height:10px"></div>
+
+              <div class="small">タグ（スペース区切り / #なし）</div>
+              <input data-tags="${it.id}" placeholder="例：logic contrast" value="${esc((it.tags||[]).join(" "))}" />
+              <div style="height:10px"></div>
+
+              <div class="small">暗記度 / 期限</div>
+              <div class="row" style="margin-top:6px">
+                <select data-lvl="${it.id}">
+                  ${[0,1,2,3,4].map(n => `<option value="${n}" ${it.level===n?"selected":""}>暗記度 ${n}</option>`).join("")}
+                </select>
+                <button class="secondary" data-due="${it.id}">期限を今にする</button>
+              </div>
+
+              <div style="height:10px"></div>
+              <div class="row">
+                <button class="secondary" data-refetch="${it.id}">再取得</button>
+                <button class="danger" data-trash="${it.id}">ゴミ箱へ</button>
+              </div>
+
+              ${tagChips ? `<div style="height:10px"></div><div class="meta">${tagChips}</div>` : ``}
+            </div>
+          </div>
+        </details>
+      </div>
+    `;
+    const div = document.createElement("div");
+    div.innerHTML = html;
+    listEl.appendChild(div.firstElementChild);
+  }
+
+  moreBtn.style.display = base.length > slice.length ? "block" : "none";
+
+  document.querySelectorAll("[data-note]").forEach(el => {
+    el.addEventListener("change", () => {
+      const it = items.find(x => x.id === el.getAttribute("data-note"));
+      if (!it) return;
+      it.note = el.value;
+      saveItems(items);
+    });
+  });
+
+  document.querySelectorAll("[data-tags]").forEach(el => {
+    el.addEventListener("change", () => {
+      const it = items.find(x => x.id === el.getAttribute("data-tags"));
+      if (!it) return;
+      const tags = (el.value||"")
+        .split(/\s+/).map(t=>t.trim().toLowerCase()).filter(Boolean)
+        .map(t=>t.replace(/^#/,""))
+        .filter((v,i,a)=>a.indexOf(v)===i)
+        .slice(0, 12);
+      it.tags = tags;
+      saveItems(items);
+      renderAll();
+    });
+  });
+
+  document.querySelectorAll("[data-lvl]").forEach(el => {
+    el.addEventListener("change", () => {
+      const it = items.find(x => x.id === el.getAttribute("data-lvl"));
+      if (!it) return;
+      it.level = clamp(Number(el.value||0),0,4);
+      saveItems(items);
+      renderAll();
+    });
+  });
+
+  document.querySelectorAll("[data-due]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const it = items.find(x => x.id === btn.getAttribute("data-due"));
+      if (!it) return;
+      it.dueAt = now();
+      saveItems(items);
+      renderAll();
+    });
+  });
+
+  document.querySelectorAll("[data-refetch]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-refetch");
+      fetcher.enqueueFor(id, ["ja","def","syn","ex"]);
+      toast("再取得を開始", "進行は上のカウンタに出る");
+    });
+  });
+
+  document.querySelectorAll("[data-trash]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-trash");
+      const snapshot = JSON.parse(JSON.stringify(items));
+      const it = items.find(x=>x.id===id);
+      if (!it) return;
+      it.deletedAt = now();
+      saveItems(items);
+      renderAll();
+      toast("ゴミ箱へ移動", "10秒以内なら取り消しできる", snapshot);
+    });
+  });
+}
+
+function renderTrash(){
+  const tr = trashItems().sort((a,b)=>b.deletedAt-a.deletedAt);
+  trashList.innerHTML = "";
+  if (!tr.length){
+    trashList.innerHTML = `<div class="small">ゴミ箱は空。</div>`;
+    return;
+  }
+  for (const it of tr.slice(0, 80)){
+    const el = document.createElement("div");
+    el.className = "card";
+    el.style.background = "var(--card2)";
+    el.style.boxShadow = "none";
+    el.innerHTML = `
+      <div class="wordLine">
+        <div>
+          <div class="word">${esc(it.word)}</div>
+          <div class="small">削除 ${new Date(it.deletedAt).toLocaleString()}</div>
+        </div>
+        <button class="secondary" data-restore="${it.id}" style="flex:0 0 auto">復元</button>
+      </div>
+    `;
+    trashList.appendChild(el);
+  }
+  document.querySelectorAll("[data-restore]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-restore");
+      const snapshot = JSON.parse(JSON.stringify(items));
+      const it = items.find(x=>x.id===id);
+      if (!it) return;
+      it.deletedAt = 0;
+      saveItems(items);
+      renderAll();
+      toast("復元", "10秒以内なら取り消しできる", snapshot);
+    });
+  });
+}
+
+function renderAll(){
+  renderKPIs();
+  renderList();
+  renderTrash();
+}
+
+// ===== Add / Merge =====
+function upsertWords(words){
+  const snapshot = JSON.parse(JSON.stringify(items));
+  const map = new Map(items.map(it => [it.word, it]));
+  let added = 0;
+
+  for (const w of words){
+    if (map.has(w)){
+      const it = map.get(w);
+      if (it.deletedAt) it.deletedAt = 0;
+      if (!it.dueAt) it.dueAt = now();
+    } else {
+      const it = mkItem(w);
+      items.unshift(it);
+      map.set(w, it);
+      added++;
     }
-    t.textContent = msg;
-    t.style.display = "block";
-    clearTimeout(t._tm);
-    t.showing = true;
-    t._tm = setTimeout(() => (t.style.display = "none"), 1800);
-  };
-
-  const load = (k, def) => {
-    try {
-      const raw = localStorage.getItem(k);
-      return raw ? JSON.parse(raw) : def;
-    } catch {
-      return def;
-    }
-  };
-  const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
-
-  // ---- state
-  let data = load(KEY, []);
-  let trash = load(TRASH_KEY, []);
-  let filter = "";
-  let currentView = "list";
-
-  // flash state
-  let deck = [];
-  let idx = 0;
-  let revealed = false;
-
-  // ---- theme
-  function setTheme(theme) {
-    document.documentElement.dataset.theme = theme;
-    localStorage.setItem(THEME_KEY, theme);
-    const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute("content", theme === "dark" ? "#0f1116" : "#ffffff");
   }
-  function initTheme() {
-    const stored = localStorage.getItem(THEME_KEY);
-    if (stored === "dark" || stored === "light") setTheme(stored);
-    else setTheme("light");
+  saveItems(items);
+
+  for (const w of words){
+    const it = map.get(w);
+    if (!it || it.deletedAt) continue;
+    fetcher.enqueueFor(it.id, ["ja","def","syn","ex"]);
   }
 
-  // ---- normalize
-  function normWord(w) {
-    return (w || "").trim().toLowerCase().replace(/[^a-z'-]/g, "");
+  renderAll();
+  toast("追加完了", `${words.length} 件処理（新規 ${added}）`, snapshot);
+}
+
+// ===== Events =====
+clearSearch.addEventListener("click", () => { search.value=""; shown=0; renderAll(); });
+search.addEventListener("input", () => { shown=0; renderAll(); });
+sort.addEventListener("change", () => { shown=0; renderAll(); });
+levelFilter.addEventListener("change", () => { shown=0; renderAll(); });
+scope.addEventListener("change", () => { shown=0; renderAll(); });
+pageSize.addEventListener("change", () => { shown=0; renderAll(); });
+
+moreBtn.addEventListener("click", () => { shown += Number(pageSize.value||30); renderAll(); });
+
+pasteDemo.addEventListener("click", () => {
+  pasteArea.value = "claim\nnevertheless, abundant / constitute\nconspicuous\nelaborate\n";
+});
+
+bulkAdd.addEventListener("click", () => {
+  const words = splitWords(pasteArea.value);
+  if (!words.length) return;
+  pasteArea.value = "";
+  upsertWords(words);
+  setTab("list");
+});
+
+function addOne(){
+  const w = normWord(oneWord.value);
+  if (!w) return;
+  oneWord.value = "";
+  upsertWords([w]);
+  setTab("list");
+}
+oneAdd.addEventListener("click", addOne);
+oneWord.addEventListener("keydown", (e)=>{ if (e.key==="Enter") addOne(); });
+
+retryMissing.addEventListener("click", ()=>fetcher.enqueueMissingAll());
+retryFailed.addEventListener("click", ()=>fetcher.enqueueFailedOnly());
+
+// Rules sheet
+openRules.addEventListener("click", ()=>ruleSheet.classList.add("show"));
+closeRules.addEventListener("click", ()=>ruleSheet.classList.remove("show"));
+
+// Export / Import / Backup
+exportBtn.addEventListener("click", async () => {
+  const data = JSON.stringify(items, null, 2);
+  try{
+    await navigator.clipboard.writeText(data);
+    toast("エクスポート完了", "クリップボードへコピー");
+  } catch {
+    window.prompt("このJSONをコピーして保存:", data);
   }
-  function splitWords(text) {
-    return (text || "")
-      .split(/[\s,]+/)
-      .map(normWord)
-      .filter(Boolean);
-  }
+});
 
-  // ---- api: Japanese translation (free public: MyMemory)
-  async function fetchJa(word) {
-    // MyMemory is rate-limited; failure is acceptable.
-    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(word)}&langpair=en|ja`;
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) throw new Error("net");
-    const j = await res.json();
-    const out = (j?.responseData?.translatedText || "").trim();
-    if (!out) throw new Error("empty");
-    return out;
-  }
+importBtn.addEventListener("click", () => {
+  const txt = window.prompt("エクスポートしたJSONを貼り付け:");
+  if (!txt) return;
 
-  // ---- UI helpers
-  function showView(name) {
-    currentView = name;
-    const views = ["viewList", "viewFlash", "viewManage"];
-    for (const v of views) {
-      const el = $(v);
-      if (el) el.hidden = (v !== `view${name[0].toUpperCase()}${name.slice(1)}`);
-    }
-  }
-
-  function setChips() {
-    const chips = $("statusChips");
-    if (!chips) return;
-
-    const total = data.length;
-    const jaMissing = data.filter(x => !x.ja).length;
-
-    chips.innerHTML = "";
-    const mk = (txt) => {
-      const d = document.createElement("div");
-      d.className = "chip";
-      d.textContent = txt;
-      chips.appendChild(d);
-    };
-    mk(`単語：${total}`);
-    mk(`和訳未取得：${jaMissing}`);
-  }
-
-  function match(item, q) {
-    if (!q) return true;
-    const s = q.toLowerCase();
-    return (
-      (item.w || "").includes(s) ||
-      (item.ja || "").toLowerCase().includes(s) ||
-      (item.memo || "").toLowerCase().includes(s) ||
-      (item.tags || []).join(" ").toLowerCase().includes(s)
-    );
-  }
-
-  function renderList() {
-    const list = $("list");
-    const empty = $("listEmpty");
-    if (!list || !empty) return;
-
-    const q = filter.trim().toLowerCase();
-    const items = data.filter(x => match(x, q));
-
-    list.innerHTML = "";
-    empty.hidden = items.length !== 0;
-
-    for (const it of items) {
-      const card = document.createElement("div");
-      card.className = "item";
-      card.dataset.word = it.w;
-
-      const top = document.createElement("div");
-      top.className = "item-top";
-
-      const w = document.createElement("div");
-      w.className = "word";
-      w.textContent = it.w;
-
-      const b = document.createElement("div");
-      b.className = "badge";
-      b.textContent = `暗記度 ${it.rate ?? 0}`;
-
-      top.appendChild(w);
-      top.appendChild(b);
-
-      const ja = document.createElement("div");
-      ja.className = "item-ja";
-      ja.textContent = it.ja ? it.ja : "（和訳 未取得）";
-
-      card.appendChild(top);
-      card.appendChild(ja);
-
-      // tap -> simple detail edit (prompt)
-      safeOn(card, "click", () => {
-        const memo = prompt("メモ（空で削除）", it.memo || "");
-        if (memo === null) return;
-        it.memo = memo.trim();
-        save(KEY, data);
-        renderList();
-      });
-
-      list.appendChild(card);
-    }
+  let incoming;
+  try{
+    incoming = JSON.parse(txt);
+    if (!Array.isArray(incoming)) throw new Error();
+  } catch {
+    toast("インポート", "JSONの形式が合ってるか確認して");
+    return;
   }
 
-  // ---- paste modal
-  function openModal(id) { const m = $(id); if (m) m.hidden = false; }
-  function closeModal(id) { const m = $(id); if (m) m.hidden = true; }
+  const snapshot = JSON.parse(JSON.stringify(items));
+  items = incoming;
+  saveItems(items);
+  renderAll();
+  toast("インポート完了", "10秒以内なら取り消しできる", snapshot);
 
-  async function addWords(words) {
-    if (!words.length) return;
+  fetcher.enqueueMissingAll();
+});
 
-    // dedupe
-    const existing = new Set(data.map(x => x.w));
-    const added = [];
-    for (const w of words) {
-      if (existing.has(w)) continue;
-      const item = { w, ja: "", memo: "", tags: [], rate: 0 };
-      data.unshift(item);
-      existing.add(w);
-      added.push(item);
-    }
-    save(KEY, data);
-    setChips();
-    renderList();
-
-    if (!added.length) { toast("追加済み"); return; }
-    toast(`追加：${added.length}`);
-
-    // fetch ja sequentially (lightweight)
-    for (const it of added) {
-      try {
-        it.ja = await fetchJa(it.w);
-      } catch {
-        // leave empty, do not freeze
-      }
-      save(KEY, data);
-      // minimal re-render every few items
-    }
-    setChips();
-    renderList();
-    toast("和訳の取得が終わった");
+backupBtn.addEventListener("click", () => {
+  const b = loadBackup();
+  if (!b || !Array.isArray(b.items)){
+    toast("バックアップ", "見つからない");
+    return;
   }
+  const ok = window.confirm("バックアップへ復元する？（Undoあり）");
+  if (!ok) return;
 
-  // ---- flash
-  function buildDeck(count, shuffle) {
-    const src = data.slice(); // copy
-    if (!src.length) return [];
+  const snapshot = JSON.parse(JSON.stringify(items));
+  items = b.items;
+  saveItems(items);
+  renderAll();
+  toast("バックアップ復元", new Date(b.at).toLocaleString(), snapshot);
+});
 
-    const pool = shuffle ? shuffleArr(src) : src;
-    const n = Math.min(Number(count) || 20, pool.length);
-    return pool.slice(0, n);
-  }
-  function shuffleArr(arr) {
-    const a = arr.slice();
-    for (let i = a.length - 1; i > 0; i--) {
-      const j = (Math.random() * (i + 1)) | 0;
-      [a[i], a[j]] = [a[j], a[i]];
-    }
-    return a;
-  }
+// Trash controls
+restoreAll.addEventListener("click", () => {
+  const snapshot = JSON.parse(JSON.stringify(items));
+  for (const it of items) it.deletedAt = 0;
+  saveItems(items);
+  renderAll();
+  toast("全部復元", "10秒以内なら取り消しできる", snapshot);
+});
 
-  function flashResetUI() {
-    const stage = $("flashStage");
-    const empty = $("flashEmpty");
-    const done = $("flashDone");
-    if (stage) stage.hidden = true;
-    if (empty) empty.hidden = true;
-    if (done) done.hidden = true;
-  }
-
-  function flashShowCard() {
-    const stage = $("flashStage");
-    const empty = $("flashEmpty");
-    const done = $("flashDone");
-    const prog = $("flashProgress");
-    const word = $("flashWord");
-    const ans = $("flashAnswer");
-    const ja = $("flashJa");
-
-    if (!stage || !empty || !done || !prog || !word || !ans || !ja) return;
-
-    if (!deck.length) {
-      stage.hidden = true;
-      done.hidden = true;
-      empty.hidden = false;
+let holdT = 0;
+function startHold(){
+  holdHint.style.display = "block";
+  holdT = setTimeout(() => {
+    const txt = window.prompt("確認：ERASE と入力すると完全削除");
+    if ((txt||"").trim().toUpperCase() !== "ERASE"){
+      toast("完全削除", "確認入力が一致しない");
+      holdHint.style.display = "none";
       return;
     }
-    if (idx >= deck.length) {
-      stage.hidden = true;
-      empty.hidden = true;
-      done.hidden = false;
-      return;
-    }
+    const snapshot = JSON.parse(JSON.stringify(items));
+    items = items.filter(it => !it.deletedAt);
+    saveItems(items);
+    renderAll();
+    toast("ゴミ箱を完全削除", "10秒以内なら取り消しできる", snapshot);
+    holdHint.style.display = "none";
+  }, 2000);
+}
+function endHold(){
+  clearTimeout(holdT);
+  setTimeout(()=>holdHint.style.display="none", 250);
+}
+emptyTrashHold.addEventListener("touchstart", startHold, {passive:true});
+emptyTrashHold.addEventListener("touchend", endHold);
+emptyTrashHold.addEventListener("mousedown", startHold);
+emptyTrashHold.addEventListener("mouseup", endHold);
 
-    revealed = false;
-    ans.hidden = true;
+softClear.addEventListener("click", () => {
+  const ok = window.confirm("全消去（ゴミ箱へ移動）する？（Undoあり）");
+  if (!ok) return;
+  const snapshot = JSON.parse(JSON.stringify(items));
+  const t = now();
+  for (const it of items) if (!it.deletedAt) it.deletedAt = t;
+  saveItems(items);
+  renderAll();
+  toast("全消去（ゴミ箱へ）", "10秒以内なら取り消しできる", snapshot);
+});
 
-    const it = deck[idx];
-    prog.textContent = `${idx + 1} / ${deck.length}`;
-    word.textContent = it.w;
-    ja.textContent = it.ja ? it.ja : "（和訳 未取得）";
+// Tutorial
+const pages = [
+  { t:"① 貼る→取得", b:"「貼る」に単語をまとめて貼る。端末に保存され、裏で和訳を取る。" },
+  { t:"② フラッシュは和訳で", b:"単語だけ表示→『答え』or評価で和訳。英語定義は詳細に隔離。" },
+  { t:"③ データ保護", b:"削除はゴミ箱へ（復元OK）。エクスポートでバックアップもできる。" }
+];
+let tIdx = 0;
+function tRender(){
+  tutPageTitle.textContent = pages[tIdx].t;
+  tutPageBody.textContent = pages[tIdx].b;
+  tutPrev.disabled = (tIdx === 0);
+  tutNext.textContent = (tIdx === pages.length - 1) ? "完了" : "次へ";
+}
+function tOpen(){
+  tIdx = 0; tRender();
+  tutorial.classList.add("show");
+}
+function tClose(mark=true){
+  tutorial.classList.remove("show");
+  if (mark) localStorage.setItem(KEYS.TUT, "1");
+}
+tutSkip.addEventListener("click", ()=>tClose(true));
+tutPrev.addEventListener("click", ()=>{ tIdx = Math.max(0, tIdx-1); tRender(); });
+tutNext.addEventListener("click", ()=>{
+  if (tIdx === pages.length - 1) return tClose(true);
+  tIdx = Math.min(pages.length - 1, tIdx + 1);
+  tRender();
+});
+openTutorial.addEventListener("click", ()=>tOpen());
 
-    stage.hidden = false;
-    empty.hidden = true;
-    done.hidden = true;
+// ===== Init =====
+function boot(){
+  renderAll();
+  shown = Number(pageSize.value || 30);
+
+  // 初回だけチュートリアル
+  if (localStorage.getItem(KEYS.TUT) !== "1"){
+    setTimeout(()=>tOpen(), 250);
   }
 
-  function revealJa() {
-    const ans = $("flashAnswer");
-    if (!ans) return;
-    ans.hidden = false;
-    revealed = true;
-  }
-
-  function rateFlash(r) {
-    if (!deck.length || idx >= deck.length) return;
-    // 「答え」見てからだけ評価できる
-    if (!revealed) { toast("先に「答え」"); return; }
-
-    const it = deck[idx];
-    it.rate = Number(r);
-
-    save(KEY, data);
-    idx++;
-    flashShowCard();
-  }
-
-  function skipFlash() {
-    if (!deck.length) return;
-    idx++;
-    flashShowCard();
-  }
-
-  // ---- tour (slide)
-  const tourPages = [
-    { t: "① 貼って追加", b: "英単語をまとめて貼って「追加」。" },
-    { t: "② 和訳が自動で付く", b: "追加後、和訳を順に取得。失敗しても止まらない。" },
-    { t: "③ フラッシュで確認", b: "英単語 → 答えで和訳 → 評価で次へ。出題数で終わる。" },
-    { t: "④ データを守る", b: "エクスポートでバックアップ。全消去はゴミ箱へ移す方式。" },
-  ];
-  let tourIdx = 0;
-
-  function tourRender() {
-    const card = $("tourCard");
-    const dots = $("tourDots");
-    const next = $("tourNext");
-    const prev = $("tourPrev");
-    if (!card || !dots || !next || !prev) return;
-
-    const p = tourPages[tourIdx];
-    card.innerHTML = `<div style="font-weight:900;font-size:16px;margin-bottom:6px;">${p.t}</div><div>${p.b}</div>`;
-
-    dots.innerHTML = "";
-    for (let i = 0; i < tourPages.length; i++) {
-      const d = document.createElement("div");
-      d.className = "dot" + (i === tourIdx ? " on" : "");
-      dots.appendChild(d);
-    }
-
-    prev.disabled = tourIdx === 0;
-    next.textContent = (tourIdx === tourPages.length - 1) ? "完了" : "次へ";
-  }
-
-  function openTour(firstTime = false) {
-    openModal("tourModal");
-    tourIdx = 0;
-    tourRender();
-    if (firstTime) localStorage.setItem(TOUR_SEEN, "1");
-  }
-
-  function closeTour() {
-    closeModal("tourModal");
-  }
-
-  // ---- manage
-  function exportData() {
-    const box = $("ioBox");
-    if (!box) return;
-    const payload = { data, trash, v: 2, at: new Date().toISOString() };
-    box.value = JSON.stringify(payload, null, 2);
-    box.focus();
-    box.select();
-    toast("エクスポートした");
-  }
-
-  function importData() {
-    const box = $("ioBox");
-    if (!box) return;
-    let obj;
-    try { obj = JSON.parse(box.value || ""); } catch { toast("JSONが壊れてる"); return; }
-
-    const incoming = Array.isArray(obj?.data) ? obj.data : null;
-    if (!incoming) { toast("形式が違う"); return; }
-
-    // merge by word
-    const map = new Map(data.map(x => [x.w, x]));
-    for (const it of incoming) {
-      if (!it?.w) continue;
-      const w = normWord(it.w);
-      if (!w) continue;
-      if (!map.has(w)) {
-        map.set(w, { w, ja: it.ja || "", memo: it.memo || "", tags: it.tags || [], rate: it.rate ?? 0 });
-      } else {
-        // prefer existing; fill blanks
-        const cur = map.get(w);
-        if (!cur.ja && it.ja) cur.ja = it.ja;
-        if (!cur.memo && it.memo) cur.memo = it.memo;
-        if (!cur.tags?.length && it.tags?.length) cur.tags = it.tags;
+  // 起動時：idleのものだけ静かにキューへ
+  for (const it of activeItems()){
+    for (const k of ["ja","def","syn","ex"]){
+      if ((it.fetch?.[k]?.status || "idle") === "idle"){
+        fetcher.enqueueFor(it.id, [k]);
       }
     }
-    data = Array.from(map.values());
-    save(KEY, data);
-    setChips();
-    renderList();
-    toast("インポートした（マージ）");
   }
-
-  function trashAll() {
-    if (!data.length) { toast("空"); return; }
-    trash = data.concat(trash);
-    data = [];
-    save(KEY, data);
-    save(TRASH_KEY, trash);
-    setChips();
-    renderList();
-    toast("全消去→ゴミ箱へ");
-  }
-  function undoTrash() {
-    if (!trash.length) { toast("ゴミ箱が空"); return; }
-    data = trash.concat(data);
-    trash = [];
-    save(KEY, data);
-    save(TRASH_KEY, trash);
-    setChips();
-    renderList();
-    toast("復元した");
-  }
-
-  // ---- SW: update-safe (and recover)
-  async function setupSW() {
-    if (!("serviceWorker" in navigator)) return;
-    try {
-      const reg = await navigator.serviceWorker.register("./sw.js", { scope: "./" });
-      // update check
-      reg.update?.();
-      // force reload when new SW takes over
-      navigator.serviceWorker.addEventListener("controllerchange", () => {
-        // one-time reload
-        location.reload();
-      });
-    } catch (e) {
-      console.warn("SW failed", e);
-    }
-  }
-
-  // ---- boot
-  function boot() {
-    initTheme();
-    setChips();
-    renderList();
-    showView("list");
-
-    // bind: top actions
-    safeOn($("themeBtn"), "click", () => {
-      const cur = document.documentElement.dataset.theme || "light";
-      setTheme(cur === "light" ? "dark" : "light");
-    });
-    safeOn($("helpBtn"), "click", () => openTour(false));
-
-    // search
-    safeOn($("search"), "input", (e) => {
-      filter = e.target.value || "";
-      renderList();
-    });
-    safeOn($("clearSearch"), "click", () => {
-      const s = $("search");
-      if (s) s.value = "";
-      filter = "";
-      renderList();
-    });
-
-    // navigation
-    safeOn($("toList"), "click", () => showView("list"));
-    safeOn($("toFlash"), "click", () => { showView("flash"); });
-    safeOn($("toManage"), "click", () => showView("manage"));
-
-    // paste modal
-    safeOn($("openPaste"), "click", () => openModal("pasteModal"));
-    safeOn($("pasteClose"), "click", () => closeModal("pasteModal"));
-    safeOn($("pasteX"), "click", () => closeModal("pasteModal"));
-    safeOn($("pasteClear"), "click", () => { const b = $("pasteBox"); if (b) b.value = ""; });
-    safeOn($("pasteAdd"), "click", async () => {
-      const b = $("pasteBox");
-      const words = splitWords(b?.value || "");
-      await addWords(words);
-      closeModal("pasteModal");
-      if (b) b.value = "";
-    });
-
-    // flash controls
-    safeOn($("exitFlash"), "click", () => {
-      flashResetUI();
-      showView("list");
-    });
-    safeOn($("startFlash"), "click", () => {
-      flashResetUI();
-      const cnt = $("flashCount")?.value || "20";
-      const sh = $("flashShuffle")?.checked ?? true;
-      deck = buildDeck(cnt, sh);
-      idx = 0;
-      flashShowCard();
-    });
-    safeOn($("revealAnswer"), "click", () => revealJa());
-    safeOn($("skipCard"), "click", () => skipFlash());
-    safeOn($("backToTop"), "click", () => { flashResetUI(); showView("list"); });
-
-    // rate buttons (event delegation)
-    const flashView = $("viewFlash");
-    safeOn(flashView, "click", (e) => {
-      const btn = e.target?.closest?.(".rate");
-      if (!btn) return;
-      const r = btn.getAttribute("data-rate");
-      rateFlash(r);
-    });
-
-    // manage
-    safeOn($("exportBtn"), "click", exportData);
-    safeOn($("importBtn"), "click", importData);
-    safeOn($("trashAllBtn"), "click", trashAll);
-    safeOn($("undoBtn"), "click", undoTrash);
-
-    // tour modal bind (重要：ここがズレると全ボタン死ぬ)
-    safeOn($("tourClose"), "click", closeTour);
-    safeOn($("tourSkip"), "click", () => { localStorage.setItem(TOUR_SEEN, "1"); closeTour(); });
-    safeOn($("tourPrev"), "click", () => { tourIdx = Math.max(0, tourIdx - 1); tourRender(); });
-    safeOn($("tourNext"), "click", () => {
-      if (tourIdx >= tourPages.length - 1) { localStorage.setItem(TOUR_SEEN, "1"); closeTour(); return; }
-      tourIdx++; tourRender();
-    });
-
-    // first time tour
-    if (!localStorage.getItem(TOUR_SEEN)) {
-      openTour(true);
-    }
-
-    // SW last
-    setupSW();
-  }
-
-  document.addEventListener("DOMContentLoaded", boot);
-})();
+}
+boot();
