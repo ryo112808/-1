@@ -1,5 +1,5 @@
-// sw v6
-const CACHE = "tango_plus_cache_v6";
+// sw v7
+const CACHE = "tango_plus_cache_v7";
 const ASSETS = [
   "./",
   "./index.html",
@@ -26,12 +26,10 @@ self.addEventListener("fetch", (event) => {
   const req = event.request;
   const url = new URL(req.url);
 
-  // GitHub Pages 上の自分のファイルだけキャッシュ
   if (url.origin === location.origin) {
     event.respondWith(
       caches.match(req).then(cached => {
         const fetchPromise = fetch(req).then(res => {
-          // 取得できたら更新
           const copy = res.clone();
           caches.open(CACHE).then(c => c.put(req, copy));
           return res;
