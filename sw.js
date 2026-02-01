@@ -1,28 +1,44 @@
-const CACHE = "vocabplus-cache-v2";
+// sw v6
+const CACHE = "tango_plus_cache_v6";
 const ASSETS = [
   "./",
   "./index.html",
-  "./manifest.json",
-  "./sw.js"
+  "./styles.css",
+  "./app.js",
+  "./manifest.json"
 ];
 
-self.addEventListener("install", (e) => {
-  e.waitUntil(
-    caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting())
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting())
   );
 });
 
-self.addEventListener("activate", (e) => {
-  e.waitUntil(self.clients.claim());
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches.keys().then(keys => Promise.all(
+      keys.filter(k => k !== CACHE).map(k => caches.delete(k))
+    )).then(()=>self.clients.claim())
+  );
 });
 
-self.addEventListener("fetch", (e) => {
-  const req = e.request;
-  e.respondWith(
-    caches.match(req).then((hit) => hit || fetch(req).then((res) => {
-      const copy = res.clone();
-      caches.open(CACHE).then((c) => c.put(req, copy)).catch(()=>{});
-      return res;
-    }).catch(() => caches.match("./index.html")))
-  );
+self.addEventListener("fetch", (event) => {
+  const req = event.request;
+  const url = new URL(req.url);
+
+  // GitHub Pages 上の自分のファイルだけキャッシュ
+  if (url.origin === location.origin) {
+    event.respondWith(
+      caches.match(req).then(cached => {
+        const fetchPromise = fetch(req).then(res => {
+          // 取得できたら更新
+          const copy = res.clone();
+          caches.open(CACHE).then(c => c.put(req, copy));
+          return res;
+        }).catch(() => cached);
+
+        return cached || fetchPromise;
+      })
+    );
+  }
 });
