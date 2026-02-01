@@ -1,616 +1,833 @@
-/* 単語plus - stable build (no deadline concept, no page navigation) */
+/* 単語plus / v6 */
+const STORE_KEY = "tango_plus_v6";
+const TRASH_KEY = "tango_plus_trash_v6";
+const THEME_KEY = "tango_plus_theme_v6";
+const SEEN_KEY  = "tango_plus_seen_v6";
 
-const STORE_KEY = "tango_plus_items_v3";
-const TRASH_KEY = "tango_plus_trash_v1";
-const THEME_KEY = "tango_plus_theme_v1";
-const TUTO_KEY  = "tango_plus_tuto_done_v1";
-const FLASH_PREF_KEY = "tango_plus_flash_pref_v1";
+const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
-const $ = (id) => document.getElementById(id);
+const now = () => Date.now();
+const uid = () => String(Date.now()) + "_" + Math.random().toString(16).slice(2);
 
-const ui = {
-  themeBtn: $("themeBtn"),
-  helpBtn: $("helpBtn"),
-
-  bulkInput: $("bulkInput"),
-  addBtn: $("addBtn"),
-  exportBtn: $("exportBtn"),
-  importBtn: $("importBtn"),
-  openTrashBtn: $("openTrashBtn"),
-
-  searchInput: $("searchInput"),
-  refreshMissingBtn: $("refreshMissingBtn"),
-  flashStartBtn: $("flashStartBtn"),
-  pickCountBtn: $("pickCountBtn"),
-  countLabel: $("countLabel"),
-  shuffleBtn: $("shuffleBtn"),
-  shuffleLabel: $("shuffleLabel"),
-  statusLine: $("statusLine"),
-  list: $("list"),
-
-  // focus
-  focus: $("focus"),
-  exitFocusBtn: $("exitFocusBtn"),
-  focusProgress: $("focusProgress"),
-  focusWord: $("focusWord"),
-  focusPhonetic: $("focusPhonetic"),
-  showAnswerBtn: $("showAnswerBtn"),
-  focusAnswer: $("focusAnswer"),
-  focusJa: $("focusJa"),
-  focusEn: $("focusEn"),
-  rateGrid: $("rateGrid"),
-  focusDone: $("focusDone"),
-  doneLine: $("doneLine"),
-  doneAgainBtn: $("doneAgainBtn"),
-  doneCloseBtn: $("doneCloseBtn"),
-
-  // tutorial
-  tutorial: $("tutorial"),
-  skipTutoBtn: $("skipTutoBtn"),
-  prevTutoBtn: $("prevTutoBtn"),
-  nextTutoBtn: $("nextTutoBtn"),
-  tutoTrack: $("tutoTrack"),
-  tutoDots: $("tutoDots"),
-  tutoViewport: $("tutoViewport"),
-
-  // toast
-  toast: $("toast"),
-};
-
-function safeJsonParse(s, fallback) {
-  try { return JSON.parse(s); } catch { return fallback; }
-}
-
-function loadItems() {
-  return safeJsonParse(localStorage.getItem(STORE_KEY) || "[]", []);
-}
-function saveItems(items) {
-  localStorage.setItem(STORE_KEY, JSON.stringify(items));
-}
-function loadTrash() {
-  return safeJsonParse(localStorage.getItem(TRASH_KEY) || "[]", []);
-}
-function saveTrash(trash) {
-  localStorage.setItem(TRASH_KEY, JSON.stringify(trash));
-}
-
-let items = loadItems();   // {id, word, phonetic, en, ja, rate, createdAt, updatedAt}
-let trash = loadTrash();   // same shape
-let flashPref = safeJsonParse(localStorage.getItem(FLASH_PREF_KEY) || "{}", { count: 20, shuffle: true });
-
-/* ---------------- Toast ---------------- */
-let toastTimer = null;
-function toast(msg) {
-  ui.toast.textContent = msg;
-  ui.toast.hidden = false;
-  if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => (ui.toast.hidden = true), 1400);
-}
-
-/* ---------------- Theme ---------------- */
-function setTheme(t) {
-  document.documentElement.dataset.theme = t;
-  localStorage.setItem(THEME_KEY, t);
-  ui.themeBtn.textContent = (t === "dark") ? "ダーク" : "ライト";
-}
-(function initTheme(){
-  const saved = localStorage.getItem(THEME_KEY);
-  const t = (saved === "dark" || saved === "light") ? saved : "light";
-  setTheme(t);
-})();
-
-ui.themeBtn.addEventListener("click", () => {
-  const cur = document.documentElement.dataset.theme || "light";
-  setTheme(cur === "light" ? "dark" : "light");
-});
-
-/* ---------------- Utils ---------------- */
-function normalizeWord(w) {
-  return (w || "").toString().trim().toLowerCase().replace(/[^a-z'-]/g, "");
-}
-function uniq(arr) {
-  return [...new Set(arr)];
-}
-function now() { return Date.now(); }
-function makeId() { return String(Date.now()) + "_" + Math.random().toString(16).slice(2); }
-
-function summarizeStatus() {
-  const total = items.length;
-  const ready = items.filter(x => x.ja && x.ja.trim().length > 0).length;
-  const missing = total - ready;
-  ui.statusLine.textContent = `単語：${total}　準備：${ready}　未準備：${missing}`;
-}
-
-/* ---------------- Lookup (EN) ----------------
-   dictionaryapi.dev (no key)
-*/
-async function lookupEn(word) {
-  const url = "https://api.dictionaryapi.dev/api/v2/entries/en/" + encodeURIComponent(word);
-  const res = await fetch(url);
-  if (!res.ok) throw new Error("en_not_found");
-  const data = await res.json();
-  const entry = data?.[0];
-
-  const phonetic = entry?.phonetic || entry?.phonetics?.find(p => p?.text)?.text || "";
-  // take up to 2 definitions across first meaning
-  const meanings = entry?.meanings || [];
-  const defs = [];
-  for (const m of meanings) {
-    const ds = (m?.definitions || []).slice(0, 2).map(d => d?.definition).filter(Boolean);
-    defs.push(...ds);
-    if (defs.length >= 2) break;
+function load(key, fallback){
+  try{
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  }catch{
+    return fallback;
   }
-  const en = defs.slice(0,2).join(" / ");
-  return { phonetic, en };
+}
+function save(key, value){
+  localStorage.setItem(key, JSON.stringify(value));
 }
 
-/* ---------------- Translate (EN->JA) ----------------
-   MyMemory (free, no key). Rate limits exist; we queue.
-*/
-async function translateJa(textEn) {
-  const q = encodeURIComponent(textEn);
-  const url = `https://api.mymemory.translated.net/get?q=${q}&langpair=en|ja`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error("ja_fail");
+let items = load(STORE_KEY, []);
+let trash = load(TRASH_KEY, []);
+
+function normalizeWord(w){
+  return (w || "")
+    .replace(/[“”"']/g,"")
+    .trim()
+    .toLowerCase();
+}
+
+function splitWords(text){
+  const t = (text || "").replace(/\r/g,"\n");
+  const parts = t.split(/[\n,\/]+/g).flatMap(x => x.split(/\s+/g));
+  const cleaned = parts.map(x => normalizeWord(x)).filter(Boolean);
+  // 英字っぽいものだけ
+  return cleaned.filter(w => /^[a-z\-]+$/i.test(w));
+}
+
+function levelLabel(lv){
+  if (lv === 0) return "未習得";
+  if (lv === 1) return "あやふや";
+  if (lv === 2) return "習得";
+  return "定着";
+}
+
+function escapeHtml(s){
+  return (s ?? "").toString().replace(/[&<>"']/g, m => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[m]));
+}
+
+function setStatus(text){
+  const el = $("#statusLine");
+  if (el) el.textContent = text || "";
+}
+
+function updateThemeBtn(){
+  const btn = $("#themeBtn");
+  if (!btn) return;
+  const t = document.documentElement.dataset.theme || "auto";
+  btn.textContent = (t === "dark") ? "🌙" : (t === "light") ? "☀️" : "🌗";
+}
+
+function applyTheme(theme){
+  document.documentElement.dataset.theme = theme;
+  save(THEME_KEY, theme);
+  updateThemeBtn();
+}
+
+function initTheme(){
+  const stored = load(THEME_KEY, "auto");
+  applyTheme(stored);
+}
+
+function cycleTheme(){
+  const cur = document.documentElement.dataset.theme || "auto";
+  const next = (cur === "auto") ? "light" : (cur === "light") ? "dark" : "auto";
+  applyTheme(next);
+}
+
+/* -----------------------------
+  取得（辞書 + 翻訳）
+-------------------------------- */
+
+// dictionaryapi.dev（英語定義・類語・例文）
+async function fetchDictionary(word){
+  const url = "https://api.dictionaryapi.dev/api/v2/entries/en/" + encodeURIComponent(word);
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error("dict_fetch");
   const data = await res.json();
-  const ja = data?.responseData?.translatedText || "";
-  return (ja || "").toString().trim();
+  const entry = data?.[0] || {};
+  const phonetic = entry.phonetic || entry.phonetics?.find(p=>p?.text)?.text || "";
+
+  let defs = [];
+  let examples = [];
+  let synonyms = [];
+
+  const meanings = entry.meanings || [];
+  for (const m of meanings){
+    const part = m.partOfSpeech || "";
+    for (const d of (m.definitions || [])){
+      if (d?.definition) defs.push((part ? part + "： " : "") + d.definition);
+      if (d?.example) examples.push(d.example);
+      if (Array.isArray(d?.synonyms)) synonyms.push(...d.synonyms);
+    }
+    if (Array.isArray(m?.synonyms)) synonyms.push(...m.synonyms);
+  }
+
+  defs = Array.from(new Set(defs)).slice(0, 4);
+  examples = Array.from(new Set(examples)).slice(0, 2);
+  synonyms = Array.from(new Set(synonyms.map(s => normalizeWord(s)).filter(Boolean))).slice(0, 8);
+
+  return { phonetic, defs, examples, synonyms };
 }
 
-/* ---------------- Fetch Queue (speed + stability) ---------------- */
+// MyMemory（無料・揺れあり）→ 和訳は空欄回避で必ず入れる
+async function fetchJa(word){
+  // できるだけ短文で翻訳が安定しやすい形
+  const q = encodeURIComponent(word);
+  const url = `https://api.mymemory.translated.net/get?q=${q}&langpair=en|ja`;
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error("ja_fetch");
+  const data = await res.json();
+  const t = data?.responseData?.translatedText || "";
+  const ja = (t || "").trim();
+  return ja || "要確認（手入力）";
+}
+
+function autoTagsFromDefs(defs){
+  const text = (defs || []).join(" ").toLowerCase();
+  const tags = [];
+  const add = (t) => { if (!tags.includes(t)) tags.push(t); };
+
+  if (/\bcompare|contrast|whereas|however|nevertheless|nonetheless\b/.test(text)) add("#対比");
+  if (/\bcause|result|therefore|thus|consequently\b/.test(text)) add("#因果");
+  if (/\bevaluate|assess|judge|criteria\b/.test(text)) add("#評価");
+  if (/\babstract|concept|idea|theory\b/.test(text)) add("#抽象");
+  if (/\bverb\b/.test(text)) add("#動詞");
+  if (/\bnoun\b/.test(text)) add("#名詞");
+  if (/\badjective\b/.test(text)) add("#形容詞");
+  if (/\badverb\b/.test(text)) add("#副詞");
+
+  return tags.slice(0, 3);
+}
+
+function ensureItem(word){
+  const w = normalizeWord(word);
+  if (!w) return null;
+  const hit = items.find(x => x.word === w);
+  if (hit) return hit;
+
+  const it = {
+    id: uid(),
+    word: w,
+    createdAt: now(),
+    level: 0,
+    phonetic: "",
+    defs: [],
+    synonyms: [],
+    examples: [],
+    ja: "要確認（手入力）",
+    note: "",
+    tags: [],
+    fetchedAt: 0,
+    pending: true,     // 取得待ち
+    hold: false        // 保留（通信揺れ時）
+  };
+  items.unshift(it);
+  return it;
+}
+
+/* -----------------------------
+  取得キュー（高速・安定）
+-------------------------------- */
 let queue = [];
 let running = 0;
-const CONCURRENCY = 3;
+let okCount = 0;
+let holdCount = 0;
 
-function enqueueFetch(id) {
-  if (queue.includes(id)) return;
-  queue.push(id);
-  pumpQueue();
-  render();
+function updateQueueUI(){
+  const q = $("#qLabel"), p = $("#pLabel"), s = $("#sLabel"), f = $("#fLabel"), h = $("#queueHint");
+  if (q) q.textContent = `待機 ${queue.length}`;
+  if (p) p.textContent = `進行 ${running}`;
+  if (s) s.textContent = `成功 ${okCount}`;
+  if (f) f.textContent = `保留 ${holdCount}`;
+  if (h) h.textContent = (queue.length || running) ? "取得中：画面を閉じても保存は続く" : "取得：完了";
 }
 
-function pumpQueue() {
-  while (running < CONCURRENCY && queue.length > 0) {
-    const id = queue.shift();
-    const it = items.find(x => x.id === id);
-    if (!it) continue;
-    if (it.ja && it.ja.trim()) continue;
+async function processOne(it){
+  try{
+    // 既に十分新しければスキップ
+    if (it.fetchedAt && (now() - it.fetchedAt) < 1000 * 60 * 60 * 24 * 3) {
+      it.pending = false;
+      it.hold = false;
+      return;
+    }
 
-    running++;
-    fetchAllForItem(it).finally(() => {
-      running--;
-      pumpQueue();
-      render();
-    });
-  }
-}
+    const [dict, ja] = await Promise.allSettled([
+      fetchDictionary(it.word),
+      fetchJa(it.word),
+    ]);
 
-async function fetchAllForItem(it) {
-  try {
-    it.updatedAt = now();
-    saveItems(items);
-    const { phonetic, en } = await lookupEn(it.word);
-    it.phonetic = phonetic || "";
-    it.en = en || "";
-    saveItems(items);
-
-    // Always attach JA as the "answer" (requested)
-    if (it.en && it.en.trim()) {
-      const ja = await translateJa(it.en);
-      it.ja = ja || "";
+    if (dict.status === "fulfilled"){
+      it.phonetic = dict.value.phonetic || it.phonetic;
+      it.defs = dict.value.defs || [];
+      it.examples = dict.value.examples || [];
+      it.synonyms = dict.value.synonyms || [];
+      const autoTags = autoTagsFromDefs(it.defs);
+      it.tags = Array.from(new Set([...(it.tags||[]), ...autoTags]));
     } else {
-      it.ja = "";
+      it.hold = true;
     }
 
-    it.updatedAt = now();
-    saveItems(items);
-  } catch (e) {
-    // Keep as "未準備" and allow retry
-    it.updatedAt = now();
-    saveItems(items);
-  }
-}
-
-/* ---------------- Rendering ---------------- */
-function escapeHtml(str) {
-  return (str || "").replace(/[&<>"']/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
-}
-
-function render() {
-  summarizeStatus();
-
-  const q = (ui.searchInput.value || "").toLowerCase().trim();
-  const filtered = !q ? items : items.filter(it => {
-    const hay = `${it.word} ${it.ja||""} ${it.en||""}`.toLowerCase();
-    return hay.includes(q);
-  });
-
-  ui.list.innerHTML = "";
-
-  if (filtered.length === 0) {
-    const li = document.createElement("li");
-    li.className = "item";
-    li.innerHTML = `<div class="muted">まだ何もない（または検索に一致しない）</div>`;
-    ui.list.appendChild(li);
-    return;
-  }
-
-  for (const it of filtered) {
-    const ready = !!(it.ja && it.ja.trim());
-    const badge = ready
-      ? `<span class="badge ok">✓ 準備</span>`
-      : `<span class="badge ng">× 未準備</span>`;
-
-    const rateText = ["未習得","不確か","習得","定着"][Number(it.rate ?? 0)] || "未習得";
-    const rateBadge = `<span class="badge">${escapeHtml(rateText)}</span>`;
-
-    const phon = it.phonetic ? `<span class="badge">${escapeHtml(it.phonetic)}</span>` : "";
-
-    const jaBlock = ready ? `<div class="ja">${escapeHtml(it.ja)}</div>` : `<div class="ja muted">和訳を準備中（再取得もOK）</div>`;
-    const enBlock = it.en ? `<div class="en">${escapeHtml(it.en)}</div>` : "";
-
-    const row = document.createElement("li");
-    row.className = "item";
-    row.innerHTML = `
-      <div class="item-top">
-        <div>
-          <div class="word">${escapeHtml(it.word)}</div>
-          <div class="subline">${badge}${rateBadge}${phon}</div>
-        </div>
-        <div class="subline" style="justify-content:flex-end">
-          <button class="chip" data-retry="${it.id}" type="button">再取得</button>
-          <button class="chip" data-del="${it.id}" type="button">削除</button>
-        </div>
-      </div>
-      ${jaBlock}
-      ${enBlock}
-      <div class="item-actions">
-        <button class="btn" data-rate="${it.id}" data-val="0" type="button">未習得</button>
-        <button class="btn" data-rate="${it.id}" data-val="1" type="button">不確か</button>
-        <button class="btn" data-rate="${it.id}" data-val="2" type="button">習得</button>
-        <button class="btn" data-rate="${it.id}" data-val="3" type="button">定着</button>
-      </div>
-    `;
-    ui.list.appendChild(row);
-  }
-
-  // bind actions
-  ui.list.querySelectorAll("[data-retry]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const id = btn.getAttribute("data-retry");
-      const it = items.find(x => x.id === id);
-      if (!it) return;
-      it.ja = "";
-      it.en = it.en || "";
-      saveItems(items);
-      enqueueFetch(id);
-      toast("再取得を開始");
-    });
-  });
-
-  ui.list.querySelectorAll("[data-del]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const id = btn.getAttribute("data-del");
-      const it = items.find(x => x.id === id);
-      if (!it) return;
-
-      // move to trash
-      items = items.filter(x => x.id !== id);
-      it.deletedAt = now();
-      trash.unshift(it);
-      saveItems(items);
-      saveTrash(trash);
-      render();
-      toast("ゴミ箱へ移動");
-    });
-  });
-
-  ui.list.querySelectorAll("[data-rate]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const id = btn.getAttribute("data-rate");
-      const val = Number(btn.getAttribute("data-val"));
-      const it = items.find(x => x.id === id);
-      if (!it) return;
-      it.rate = val;
-      it.updatedAt = now();
-      saveItems(items);
-      render();
-      toast("暗記度を更新");
-    });
-  });
-
-  // update flash labels
-  ui.countLabel.textContent = String(flashPref.count || 20);
-  ui.shuffleLabel.textContent = (flashPref.shuffle ? "ON" : "OFF");
-}
-
-/* ---------------- Bulk Add ---------------- */
-function parseBulk(text) {
-  const raw = (text || "").split(/\s+/).map(normalizeWord).filter(Boolean);
-  return uniq(raw).filter(w => w.length >= 2);
-}
-
-ui.addBtn.addEventListener("click", () => {
-  const words = parseBulk(ui.bulkInput.value);
-  ui.bulkInput.value = "";
-
-  let added = 0;
-  for (const w of words) {
-    if (items.some(x => x.word === w)) continue;
-    const it = {
-      id: makeId(),
-      word: w,
-      phonetic: "",
-      en: "",
-      ja: "",
-      rate: 0,
-      createdAt: now(),
-      updatedAt: now(),
-    };
-    items.unshift(it);
-    added++;
-    enqueueFetch(it.id);
-  }
-
-  saveItems(items);
-  render();
-  if (added > 0) toast(`${added}語追加`);
-  else toast("追加なし（重複はまとめた）");
-});
-
-ui.bulkInput.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) ui.addBtn.click();
-});
-
-ui.searchInput.addEventListener("input", render);
-
-/* ---------------- Retry Missing ---------------- */
-ui.refreshMissingBtn.addEventListener("click", () => {
-  const missing = items.filter(x => !(x.ja && x.ja.trim())).slice(0, 80); // cap
-  missing.forEach(it => enqueueFetch(it.id));
-  toast("未準備を再取得");
-});
-
-/* ---------------- Backup / Restore ---------------- */
-ui.exportBtn.addEventListener("click", async () => {
-  const payload = JSON.stringify({ items, trash, flashPref }, null, 0);
-  try {
-    await navigator.clipboard.writeText(payload);
-    toast("バックアップをコピー");
-  } catch {
-    window.prompt("これをコピーして保存:", payload);
-  }
-});
-
-ui.importBtn.addEventListener("click", () => {
-  const txt = window.prompt("バックアップ文字列を貼り付け:");
-  if (!txt) return;
-  const obj = safeJsonParse(txt, null);
-  if (!obj || !Array.isArray(obj.items)) {
-    toast("形式が合わない");
-    return;
-  }
-  items = obj.items;
-  trash = Array.isArray(obj.trash) ? obj.trash : [];
-  flashPref = obj.flashPref || flashPref;
-
-  saveItems(items);
-  saveTrash(trash);
-  localStorage.setItem(FLASH_PREF_KEY, JSON.stringify(flashPref));
-  render();
-  toast("復元完了");
-});
-
-/* ---------------- Trash ---------------- */
-ui.openTrashBtn.addEventListener("click", () => {
-  if (trash.length === 0) { toast("ゴミ箱は空"); return; }
-
-  const lines = trash.slice(0, 50).map((t, i) => `${i+1}. ${t.word}`).join("\n");
-  const pick = window.prompt(
-    "ゴミ箱（復元する番号 / 'all'で全復元 / 空で閉じる）\n\n" + lines
-  );
-  if (!pick) return;
-
-  if (pick.trim().toLowerCase() === "all") {
-    // restore all
-    for (const t of trash) {
-      delete t.deletedAt;
-      items.unshift(t);
+    if (ja.status === "fulfilled"){
+      it.ja = (ja.value || "").trim() || "要確認（手入力）";
+    } else {
+      it.ja = it.ja && it.ja.trim() ? it.ja : "要確認（手入力）";
+      it.hold = true;
     }
-    trash = [];
-    saveItems(items);
-    saveTrash(trash);
-    render();
-    toast("全復元");
-    return;
+
+    it.pending = false;
+    it.fetchedAt = now();
+  }catch{
+    it.pending = false;
+    it.hold = true;
+    it.ja = it.ja && it.ja.trim() ? it.ja : "要確認（手入力）";
   }
-
-  const n = Number(pick);
-  if (!Number.isFinite(n) || n < 1 || n > trash.length) { toast("番号が合わない"); return; }
-  const t = trash.splice(n-1, 1)[0];
-  delete t.deletedAt;
-  items.unshift(t);
-  saveItems(items);
-  saveTrash(trash);
-  render();
-  toast("復元");
-});
-
-/* ---------------- Flash (Focus Mode) ---------------- */
-let flashDeck = [];
-let flashIdx = 0;
-let sessionCount = 20;
-
-function buildDeck() {
-  const ready = items.filter(x => x.ja && x.ja.trim());
-  const pool = flashPref.shuffle ? shuffleArray([...ready]) : [...ready];
-  return pool.slice(0, sessionCount);
 }
 
-function shuffleArray(a) {
-  for (let i=a.length-1; i>0; i--) {
-    const j = Math.floor(Math.random()*(i+1));
-    [a[i], a[j]] = [a[j], a[i]];
+async function pump(){
+  updateQueueUI();
+  while (running < 3 && queue.length){
+    const it = queue.shift();
+    running++;
+    updateQueueUI();
+
+    processOne(it).then(()=>{
+      if (it.hold) holdCount++;
+      else okCount++;
+      running--;
+      save(STORE_KEY, items);
+      renderList();
+      pump();
+    });
   }
+
+  save(STORE_KEY, items);
+  updateQueueUI();
+}
+
+function enqueueItems(arr){
+  const targets = arr.filter(it => it && (it.pending || it.hold || !it.fetchedAt));
+  // 重複投入回避
+  for (const it of targets){
+    if (!queue.find(x => x.id === it.id)) queue.push(it);
+  }
+  pump();
+}
+
+/* -----------------------------
+  List render
+-------------------------------- */
+function passesFilter(it, q, level){
+  if (level !== "all" && String(it.level) !== String(level)) return false;
+  if (!q) return true;
+
+  const hay = [
+    it.word,
+    it.ja,
+    (it.defs || []).join(" "),
+    (it.synonyms || []).join(" "),
+    (it.examples || []).join(" "),
+    it.note,
+    (it.tags || []).join(" "),
+    it.phonetic
+  ].join(" ").toLowerCase();
+
+  // タグ検索（#～）
+  return hay.includes(q);
+}
+
+function sortItems(arr, mode){
+  const a = [...arr];
+  if (mode === "old") a.sort((x,y)=>x.createdAt - y.createdAt);
+  else if (mode === "az") a.sort((x,y)=>x.word.localeCompare(y.word));
+  else a.sort((x,y)=>y.createdAt - x.createdAt);
   return a;
 }
 
-function openFocus() {
-  ui.focus.hidden = false;
-  ui.focusDone.hidden = true;
-  ui.focusAnswer.hidden = true;
-  ui.showAnswerBtn.hidden = false;
-}
+function renderList(){
+  const list = $("#listArea");
+  if (!list) return;
 
-function closeFocus() {
-  ui.focus.hidden = true;
-}
+  const qRaw = ($("#search")?.value || "").trim().toLowerCase();
+  const level = $("#filterLevel")?.value || "all";
+  const sortBy = $("#sortBy")?.value || "new";
 
-function showCard() {
-  const it = flashDeck[flashIdx];
-  ui.focusProgress.textContent = `${flashIdx+1} / ${flashDeck.length}`;
-  ui.focusWord.textContent = it.word;
-  ui.focusPhonetic.textContent = it.phonetic || "";
-  ui.focusJa.textContent = "";
-  ui.focusEn.textContent = "";
-  ui.focusAnswer.hidden = true;
-  ui.showAnswerBtn.hidden = false;
-}
+  const filtered = sortItems(items.filter(it => passesFilter(it, qRaw, level)), sortBy);
 
-function showDone() {
-  ui.focusDone.hidden = false;
-  ui.doneLine.textContent = `${flashDeck.length}語チェック`;
-}
-
-ui.pickCountBtn.addEventListener("click", () => {
-  const v = window.prompt("出題数（1〜200）", String(flashPref.count || 20));
-  if (!v) return;
-  const n = Math.max(1, Math.min(200, Number(v)));
-  if (!Number.isFinite(n)) return;
-  flashPref.count = n;
-  localStorage.setItem(FLASH_PREF_KEY, JSON.stringify(flashPref));
-  render();
-  toast("出題数を更新");
-});
-
-ui.shuffleBtn.addEventListener("click", () => {
-  flashPref.shuffle = !flashPref.shuffle;
-  localStorage.setItem(FLASH_PREF_KEY, JSON.stringify(flashPref));
-  render();
-  toast("シャッフルを更新");
-});
-
-ui.flashStartBtn.addEventListener("click", () => {
-  sessionCount = Number(flashPref.count || 20);
-  flashDeck = buildDeck();
-
-  if (flashDeck.length === 0) {
-    toast("和訳つき単語がまだない");
+  if (filtered.length === 0){
+    list.innerHTML = `<div class="hint">単語がまだ入っていない。貼るタブでまとめ貼りすると一気に作れる。</div>`;
+    setStatus("");
     return;
   }
-  flashIdx = 0;
-  openFocus();
-  showCard();
-});
 
-ui.exitFocusBtn.addEventListener("click", closeFocus);
-ui.doneCloseBtn.addEventListener("click", closeFocus);
+  const pendingCount = items.filter(x=>x.pending).length;
+  const hold = items.filter(x=>x.hold).length;
+  setStatus(pendingCount || running || queue.length ? `取得中：${pendingCount} / 保留：${hold}` : "");
 
-ui.doneAgainBtn.addEventListener("click", () => {
-  sessionCount = Number(flashPref.count || 20);
-  flashDeck = buildDeck();
-  flashIdx = 0;
-  ui.focusDone.hidden = true;
-  openFocus();
-  showCard();
-});
+  list.innerHTML = filtered.map(it => {
+    const tags = (it.tags || []).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join("");
+    const defs = (it.defs || []).length ? escapeHtml(it.defs.join("\n")) : "取得中…";
+    const syn = (it.synonyms || []).length ? escapeHtml(it.synonyms.join(", ")) : "取得中…";
+    const ex  = (it.examples || []).length ? escapeHtml(it.examples.join("\n")) : "取得中…";
+    const ja  = escapeHtml(it.ja || "要確認（手入力）");
 
-ui.showAnswerBtn.addEventListener("click", () => {
-  const it = flashDeck[flashIdx];
-  ui.focusJa.textContent = it.ja || "";
-  ui.focusEn.textContent = it.en ? `英: ${it.en}` : "";
-  ui.focusAnswer.hidden = false;
-  ui.showAnswerBtn.hidden = true;
-});
+    return `
+      <article class="item" data-id="${it.id}">
+        <div class="itemTop">
+          <div>
+            <div class="itemWord">${escapeHtml(it.word)}</div>
+            <div class="itemSub">${escapeHtml(it.phonetic || "")}</div>
+          </div>
+          <div class="levelTag">${levelLabel(it.level)}</div>
+        </div>
 
-ui.rateGrid.querySelectorAll("button[data-rate]").forEach(btn => {
-  btn.addEventListener("click", () => {
-    const rate = Number(btn.getAttribute("data-rate"));
-    const it = flashDeck[flashIdx];
-    if (it) {
-      it.rate = rate;
-      it.updatedAt = now();
-      saveItems(items);
-    }
-    flashIdx++;
-    if (flashIdx >= flashDeck.length) {
-      showDone();
-    } else {
-      showCard();
-    }
+        <div class="itemBody">
+          <div class="kv">
+            <div class="k">和訳</div>
+            <div class="v">${ja}</div>
+          </div>
+
+          <div class="kv">
+            <div class="k">意味（英語）</div>
+            <div class="v">${defs}</div>
+          </div>
+
+          <div class="kv">
+            <div class="k">類語</div>
+            <div class="v">${syn}</div>
+          </div>
+
+          <div class="kv">
+            <div class="k">例文</div>
+            <div class="v">${ex}</div>
+          </div>
+
+          <div class="kv">
+            <div class="k">メモ（任意）</div>
+            <textarea class="textarea note" data-note="${it.id}" placeholder="自分用メモ">${escapeHtml(it.note || "")}</textarea>
+          </div>
+
+          <div class="kv">
+            <div class="k">タグ（自動付与＋手動もOK）</div>
+            <input class="input tagsIn" data-tags="${it.id}" placeholder="#対比 #因果 など" value="${escapeHtml((it.tags||[]).join(" "))}">
+            <div class="tags">${tags}</div>
+          </div>
+
+          <div class="row">
+            <select class="select lvSel" data-lv="${it.id}">
+              <option value="0" ${it.level===0?"selected":""}>未習得</option>
+              <option value="1" ${it.level===1?"selected":""}>あやふや</option>
+              <option value="2" ${it.level===2?"selected":""}>習得</option>
+              <option value="3" ${it.level===3?"selected":""}>定着</option>
+            </select>
+            <button class="btn danger toTrash" data-trash="${it.id}" type="button">ゴミ箱へ</button>
+          </div>
+        </div>
+      </article>
+    `;
+  }).join("");
+
+  // bind: memo
+  $$(".note").forEach(t => {
+    t.addEventListener("change", () => {
+      const id = t.dataset.note;
+      const it = items.find(x=>x.id===id);
+      if (!it) return;
+      it.note = t.value || "";
+      save(STORE_KEY, items);
+    });
   });
-});
 
-/* ---------------- Tutorial (always escapable) ---------------- */
-let slide = 0;
+  // bind: tags
+  $$(".tagsIn").forEach(inp => {
+    inp.addEventListener("change", () => {
+      const id = inp.dataset.tags;
+      const it = items.find(x=>x.id===id);
+      if (!it) return;
+      const ts = (inp.value || "").split(/\s+/).map(s=>s.trim()).filter(Boolean);
+      it.tags = Array.from(new Set(ts));
+      save(STORE_KEY, items);
+      renderList();
+    });
+  });
 
-function setSlide(n) {
-  slide = Math.max(0, Math.min(3, n));
-  ui.tutoTrack.style.transform = `translateX(${-100*slide}%)`;
-  const dots = ui.tutoDots.querySelectorAll(".dot");
-  dots.forEach((d, i) => d.classList.toggle("on", i === slide));
-  ui.prevTutoBtn.disabled = (slide === 0);
-  ui.nextTutoBtn.textContent = (slide === 3) ? "閉じる" : "次へ";
+  // bind: level
+  $$(".lvSel").forEach(sel => {
+    sel.addEventListener("change", () => {
+      const id = sel.dataset.lv;
+      const it = items.find(x=>x.id===id);
+      if (!it) return;
+      it.level = Number(sel.value);
+      save(STORE_KEY, items);
+      renderList();
+    });
+  });
+
+  // bind: trash
+  $$(".toTrash").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.trash;
+      const it = items.find(x=>x.id===id);
+      if (!it) return;
+      trash.unshift({ ...it, trashedAt: now() });
+      items = items.filter(x=>x.id!==id);
+      save(STORE_KEY, items);
+      save(TRASH_KEY, trash);
+      renderList();
+      alert("ゴミ箱へ移動した（管理→ゴミ箱で復元）");
+    });
+  });
 }
 
-function openTutorial() {
-  ui.tutorial.hidden = false;
-  setSlide(0);
+/* -----------------------------
+  Tabs
+-------------------------------- */
+function setTab(name){
+  const map = { list: "#tab_list", paste:"#tab_paste", flash:"#tab_flash", manage:"#tab_manage" };
+  for (const k of Object.keys(map)){
+    const el = $(map[k]);
+    if (el) el.hidden = (k !== name);
+  }
+  $$(".tab").forEach(b => {
+    const on = b.dataset.tab === name;
+    b.classList.toggle("is-active", on);
+    b.setAttribute("aria-selected", on ? "true" : "false");
+  });
 }
 
-function closeTutorial(done=true) {
-  ui.tutorial.hidden = true;
-  if (done) localStorage.setItem(TUTO_KEY, "1");
+/* -----------------------------
+  Flash (独立 overlay)
+-------------------------------- */
+let deck = [];
+let idx = 0;
+let revealed = false;
+let flashTargetCount = 0;
+let result = { "0":0, "1":0, "2":0, "3":0 };
+
+function openFlashOverlay(){
+  const ov = $("#flashOverlay");
+  if (ov) ov.hidden = false;
+}
+function closeFlashOverlay(){
+  const ov = $("#flashOverlay");
+  if (ov) ov.hidden = true;
 }
 
-ui.helpBtn.addEventListener("click", openTutorial);
-ui.skipTutoBtn.addEventListener("click", () => closeTutorial(true));
-ui.prevTutoBtn.addEventListener("click", () => setSlide(slide - 1));
-ui.nextTutoBtn.addEventListener("click", () => {
-  if (slide === 3) closeTutorial(true);
-  else setSlide(slide + 1);
-});
+function buildDeck(level, count, shuffle){
+  const pool = (level === "all") ? [...items] : items.filter(x => String(x.level) === String(level));
+  const withJa = pool.filter(x => (x.ja || "").trim().length);
+  const base = withJa.length ? withJa : pool;
 
-// swipe
-(function bindSwipe(){
-  let startX = null;
-  ui.tutoViewport.addEventListener("touchstart", (e) => {
-    startX = e.touches?.[0]?.clientX ?? null;
-  }, { passive: true });
+  let arr = base.slice();
+  if (shuffle){
+    for (let i=arr.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [arr[i],arr[j]] = [arr[j],arr[i]];
+    }
+  }
 
-  ui.tutoViewport.addEventListener("touchend", (e) => {
-    const endX = e.changedTouches?.[0]?.clientX ?? null;
-    if (startX === null || endX === null) return;
-    const dx = endX - startX;
-    if (Math.abs(dx) < 35) return;
-    if (dx < 0) ui.nextTutoBtn.click();
-    else ui.prevTutoBtn.click();
-    startX = null;
-  }, { passive: true });
-})();
+  const n = Math.max(1, Math.min(count, arr.length));
+  return arr.slice(0, n);
+}
 
-/* ---------------- Boot ---------------- */
-(function boot(){
-  // show tutorial on first open, always escapable
-  const done = localStorage.getItem(TUTO_KEY) === "1";
-  if (!done) openTutorial();
+function updateFlashUI(){
+  const it = deck[idx];
+  const prog = $("#flashProgress");
+  const word = $("#flashWord");
+  const pho  = $("#flashPhonetic");
+  const ja   = $("#flashJa");
+  const meta = $("#flashMeta");
+  const box  = $("#answerBox");
+  const row  = $("#rateRow");
+  const hint = $("#flashHint");
 
-  // queue fetch for existing missing items (small batch)
-  items.slice(0, 50).filter(x => !(x.ja && x.ja.trim())).forEach(x => enqueueFetch(x.id));
+  if (!it) return;
 
-  // render
-  render();
+  if (prog) prog.textContent = `${idx+1} / ${flashTargetCount}`;
+  if (word) word.textContent = it.word;
+  if (pho)  pho.textContent = it.phonetic || "";
 
-  // tick queue
-  pumpQueue();
-})();
+  // 初期は非表示
+  if (box) box.hidden = !revealed;
+  if (row) row.hidden = !revealed;
+
+  if (ja) ja.textContent = revealed ? (it.ja || "要確認（手入力）") : "";
+  if (hint) hint.textContent = revealed ? "評価で暗記度を更新 → 次へ" : "「答え」で和訳を表示";
+
+  if (meta) meta.textContent = `暗記度：${levelLabel(it.level)}　#タグ：${(it.tags||[]).join(" ")}`;
+}
+
+function showDone(){
+  const done = $("#flashDone");
+  const card = $(".overlay__card");
+  if (done) done.hidden = false;
+  if (card) card.hidden = true;
+
+  const txt = $("#doneText");
+  if (txt){
+    txt.textContent =
+      `未習得 ${result["0"]} / あやふや ${result["1"]} / 習得 ${result["2"]} / 定着 ${result["3"]}　（合計 ${flashTargetCount}）`;
+  }
+}
+
+function startFlash(){
+  const level = $("#flashLevel")?.value || "all";
+  const shuffle = !!$("#flashShuffle")?.checked;
+  const rawCount = ($("#flashCount")?.value || "").trim();
+  const count = Math.max(1, Number(rawCount || 20));
+
+  const base = buildDeck(level, count, shuffle);
+  if (!base.length){
+    alert("出題できる単語がまだ少ない。先に貼るタブで追加するとすぐ回せる。");
+    return;
+  }
+
+  deck = base;
+  idx = 0;
+  revealed = false;
+  flashTargetCount = deck.length;
+  result = { "0":0, "1":0, "2":0, "3":0 };
+
+  $("#flashDone") && ($("#flashDone").hidden = true);
+  const card = $(".overlay__card");
+  if (card) card.hidden = false;
+
+  openFlashOverlay();
+  updateFlashUI();
+}
+
+function reveal(){
+  revealed = true;
+  updateFlashUI();
+}
+
+function rate(lv){
+  // ここで「評価＝答え表示」も満たす
+  if (!revealed) revealed = true;
+
+  const it = deck[idx];
+  if (it){
+    it.level = Number(lv);
+    result[String(lv)]++;
+    save(STORE_KEY, items);
+  }
+  updateFlashUI();
+}
+
+function next(){
+  // 次へ：最後は終了画面へ
+  idx++;
+  revealed = false;
+  if (idx >= flashTargetCount){
+    showDone();
+    return;
+  }
+  updateFlashUI();
+}
+
+/* -----------------------------
+  Export/Import + Trash
+-------------------------------- */
+function doExport(){
+  const payload = {
+    version: 6,
+    exportedAt: new Date().toISOString(),
+    items,
+    trash
+  };
+  const text = JSON.stringify(payload, null, 2);
+  navigator.clipboard.writeText(text).then(()=>{
+    alert("エクスポートをコピーした（メモ帳に貼って保存でOK）");
+  }).catch(()=>{
+    window.prompt("このテキストをコピーして保存:", text);
+  });
+}
+
+function doImport(){
+  const txt = window.prompt("エクスポートしたJSONを貼ってOK:");
+  if (!txt) return;
+  try{
+    const obj = JSON.parse(txt);
+    const arr = obj?.items;
+    if (!Array.isArray(arr)) throw new Error();
+    // 軽い正規化
+    items = arr.map(x => ({
+      ...x,
+      word: normalizeWord(x.word),
+      level: Number(x.level || 0),
+      ja: (x.ja || "要確認（手入力）"),
+      tags: Array.isArray(x.tags) ? x.tags : [],
+      defs: Array.isArray(x.defs) ? x.defs : [],
+      synonyms: Array.isArray(x.synonyms) ? x.synonyms : [],
+      examples: Array.isArray(x.examples) ? x.examples : [],
+    })).filter(x => x.word);
+
+    trash = Array.isArray(obj?.trash) ? obj.trash : trash;
+    save(STORE_KEY, items);
+    save(TRASH_KEY, trash);
+    renderList();
+    alert("インポート完了");
+  }catch{
+    alert("形式が合ってるJSONをそのまま貼ってOK");
+  }
+}
+
+function trashAll(){
+  if (!items.length){
+    alert("移動できる単語がまだない。");
+    return;
+  }
+  const ok = confirm("全単語をゴミ箱へ移動する？（復元OK）");
+  if (!ok) return;
+  trash.unshift(...items.map(it => ({...it, trashedAt: now()})));
+  items = [];
+  save(STORE_KEY, items);
+  save(TRASH_KEY, trash);
+  renderList();
+  alert("ゴミ箱へ移動した");
+}
+
+function openTrash(){
+  // 簡易UI：promptで復元
+  if (!trash.length){
+    alert("ゴミ箱は空。");
+    return;
+  }
+  const sample = trash.slice(0, 30).map((t,i)=>`${i+1}. ${t.word}`).join("\n");
+  const ans = window.prompt(`復元したい番号（1-${Math.min(30,trash.length)}）を入力:\n\n${sample}`);
+  if (!ans) return;
+  const n = Number(ans);
+  if (!Number.isFinite(n) || n < 1 || n > Math.min(30,trash.length)) return;
+
+  const it = trash.splice(n-1, 1)[0];
+  if (it){
+    // 同単語があれば上書きせず追加回避
+    if (!items.find(x=>x.word===it.word)) items.unshift({...it, id: uid(), restoredAt: now()});
+    save(STORE_KEY, items);
+    save(TRASH_KEY, trash);
+    renderList();
+    alert("復元した");
+  }
+}
+
+/* -----------------------------
+  Tutorial
+-------------------------------- */
+let tutoIndex = 0;
+
+function renderDots(){
+  const slides = $$("#tutoSlides .tuto__slide");
+  const dots = $("#tutoDots");
+  if (!dots) return;
+  dots.innerHTML = slides.map((_,i)=>`<span class="dot ${i===tutoIndex?"is-active":""}"></span>`).join("");
+}
+
+function showSlide(i){
+  const slides = $$("#tutoSlides .tuto__slide");
+  tutoIndex = Math.max(0, Math.min(i, slides.length-1));
+  slides.forEach((s,idx)=>s.classList.toggle("is-active", idx===tutoIndex));
+  renderDots();
+
+  const prev = $("#tutoPrev");
+  const next = $("#tutoNext");
+  if (prev) prev.textContent = (tutoIndex===0) ? "戻る" : "戻る";
+  if (next) next.textContent = (tutoIndex===slides.length-1) ? "完了" : "次へ";
+}
+
+function closeTuto(){
+  const t = $("#tuto");
+  if (t) t.hidden = true;
+  localStorage.setItem(SEEN_KEY, "1");
+}
+
+function maybeOpenTuto(){
+  const seen = localStorage.getItem(SEEN_KEY);
+  if (seen) return;
+  const t = $("#tuto");
+  if (!t) return;
+  t.hidden = false;
+  showSlide(0);
+}
+
+/* -----------------------------
+  Events
+-------------------------------- */
+function bind(){
+  // tabs
+  $$(".tab").forEach(b => {
+    b.addEventListener("click", () => setTab(b.dataset.tab));
+  });
+
+  // theme
+  $("#themeBtn")?.addEventListener("click", cycleTheme);
+
+  // search
+  $("#search")?.addEventListener("input", renderList);
+  $("#clearSearch")?.addEventListener("click", () => {
+    const s = $("#search");
+    if (s) s.value = "";
+    renderList();
+  });
+  $("#filterLevel")?.addEventListener("change", renderList);
+  $("#sortBy")?.addEventListener("change", renderList);
+
+  // bulk add
+  $("#addBulk")?.addEventListener("click", () => {
+    const txt = $("#bulk")?.value || "";
+    const ws = splitWords(txt);
+    if (!ws.length){
+      alert("英単語を貼ってから「追加する」。");
+      return;
+    }
+    let added = 0;
+    for (const w of ws){
+      const before = items.length;
+      const it = ensureItem(w);
+      if (it && items.length !== before) added++;
+      if (it) it.pending = true;
+    }
+    save(STORE_KEY, items);
+    renderList();
+
+    const targets = ws.map(w => items.find(x=>x.word===normalizeWord(w))).filter(Boolean);
+    okCount = 0; holdCount = 0;
+    enqueueItems(targets);
+
+    alert(`追加：${added}語（取得開始）`);
+  });
+
+  $("#retryMissing")?.addEventListener("click", () => {
+    const missing = items.filter(x => x.pending || x.hold || !x.fetchedAt);
+    if (!missing.length){
+      alert("再取得対象が今は少ない。");
+      return;
+    }
+    okCount = 0; holdCount = 0;
+    missing.forEach(x => { x.pending = true; x.hold = false; });
+    save(STORE_KEY, items);
+    renderList();
+    enqueueItems(missing);
+  });
+
+  // flash
+  $("#startFlash")?.addEventListener("click", startFlash);
+  $("#endFlash")?.addEventListener("click", () => {
+    closeFlashOverlay();
+    setTab("list");
+  });
+  $("#revealBtn")?.addEventListener("click", reveal);
+  $("#nextBtn")?.addEventListener("click", next);
+
+  $$("#rateRow .rate").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const lv = btn.dataset.rate;
+      rate(lv);
+      // 評価したら次へ（テンポ重視）
+      next();
+    });
+  });
+
+  $("#doneClose")?.addEventListener("click", () => {
+    closeFlashOverlay();
+    setTab("list");
+  });
+
+  // export/import
+  $("#exportBtn")?.addEventListener("click", doExport);
+  $("#importBtn")?.addEventListener("click", doImport);
+
+  // trash
+  $("#trashAll")?.addEventListener("click", trashAll);
+  $("#openTrash")?.addEventListener("click", openTrash);
+
+  // tutorial
+  $("#tutoSkip")?.addEventListener("click", closeTuto);
+  $("#tutoPrev")?.addEventListener("click", () => showSlide(tutoIndex - 1));
+  $("#tutoNext")?.addEventListener("click", () => {
+    const slides = $$("#tutoSlides .tuto__slide");
+    if (tutoIndex >= slides.length - 1) closeTuto();
+    else showSlide(tutoIndex + 1);
+  });
+
+  // keyboard in flash
+  document.addEventListener("keydown", (e) => {
+    const ov = $("#flashOverlay");
+    if (!ov || ov.hidden) return;
+
+    if (e.key === " "){
+      e.preventDefault();
+      if (!revealed) reveal();
+      else next();
+    }
+    if (e.key === "1") { e.preventDefault(); rate(0); next(); }
+    if (e.key === "2") { e.preventDefault(); rate(1); next(); }
+    if (e.key === "3") { e.preventDefault(); rate(2); next(); }
+    if (e.key === "4") { e.preventDefault(); rate(3); next(); }
+    if (e.key === "Escape"){ e.preventDefault(); closeFlashOverlay(); setTab("list"); }
+  });
+}
+
+function init(){
+  initTheme();
+  updateQueueUI();
+  bind();
+  renderList();
+  setTab("list");
+
+  // 初回チュートリアル
+  maybeOpenTuto();
+
+  // PWA
+  if ("serviceWorker" in navigator){
+    navigator.serviceWorker.register("./sw.js").catch(()=>{});
+  }
+}
+
+init();
