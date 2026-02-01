@@ -1,898 +1,536 @@
-/* 単語plus v2 - 安定動作優先（スマホ向け） */
+(() => {
+  "use strict";
 
-const STORE_KEY = "tango_plus_v2_items";
-const TRASH_KEY = "tango_plus_v2_trash";
-const META_KEY  = "tango_plus_v2_meta";
-const THEME_KEY = "tango_plus_v2_theme";
+  const KEY = "tango_plus_v2_data";
+  const TRASH_KEY = "tango_plus_v2_trash";
+  const THEME_KEY = "tango_plus_v2_theme";
+  const TOUR_SEEN = "tango_plus_v2_tour_seen";
 
-const $ = (q) => document.querySelector(q);
-const $$ = (q) => Array.from(document.querySelectorAll(q));
+  const $ = (id) => document.getElementById(id);
 
-/* ---------- state ---------- */
-let items = loadJSON(STORE_KEY, []);
-let trash = loadJSON(TRASH_KEY, []);
-let meta  = loadJSON(META_KEY, { tutorialDone: false, backup: null, lastUndo: null });
-
-let flashDeck = [];
-let flashIdx = 0;
-let flashRevealed = false;
-
-const LIMIT_CONCURRENCY = 3;
-let queueAbort = false;
-
-/* ---------- init ---------- */
-boot();
-function boot(){
-  bindNav();
-  bindTheme();
-  bindPaste();
-  bindDetail();
-  bindManage();
-  bindFlash();
-  bindTutorial();
-
-  renderChips();
-  renderList();
-  renderTrash();
-  ensureFirstOpenTutorial();
-
-  // SW
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("./sw.js").catch(()=>{});
-  }
-}
-
-/* ---------- utils ---------- */
-function loadJSON(key, fallback){
-  try{
-    const v = localStorage.getItem(key);
-    return v ? JSON.parse(v) : fallback;
-  }catch{
-    return fallback;
-  }
-}
-function saveAll(){
-  localStorage.setItem(STORE_KEY, JSON.stringify(items));
-  localStorage.setItem(TRASH_KEY, JSON.stringify(trash));
-  localStorage.setItem(META_KEY, JSON.stringify(meta));
-}
-function normWord(s){
-  return (s||"")
-    .toString()
-    .trim()
-    .replace(/[“”"]/g,"")
-    .replace(/^[^a-zA-Z]+|[^a-zA-Z]+$/g,"")
-    .toLowerCase();
-}
-function uniqByWord(arr){
-  const map = new Map();
-  for (const it of arr){
-    if (!it.word) continue;
-    map.set(normWord(it.word), it);
-  }
-  return Array.from(map.values());
-}
-function now(){ return Date.now(); }
-function fmtDate(t){
-  const d = new Date(t);
-  return d.toLocaleString();
-}
-function escapeHtml(str){
-  return (str||"").replace(/[&<>"']/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
-}
-function hasText(s){ return (s||"").toString().trim().length > 0; }
-
-/* ---------- navigation (views) ---------- */
-function bindNav(){
-  $("#toList").addEventListener("click", ()=>showView("list"));
-  $("#toFlash").addEventListener("click", ()=>showView("flash"));
-  $("#toManage").addEventListener("click", ()=>showView("manage"));
-
-  $("#helpBtn").addEventListener("click", ()=>openTutorial(true));
-
-  $("#clearSearch").addEventListener("click", ()=>{
-    $("#search").value = "";
-    renderList();
-  });
-  $("#search").addEventListener("input", ()=>renderList());
-}
-function showView(name){
-  const map = {
-    list:   ["#viewList", "#viewFlash", "#viewManage"],
-    flash:  ["#viewFlash", "#viewList", "#viewManage"],
-    manage: ["#viewManage", "#viewList", "#viewFlash"]
+  const safeOn = (el, ev, fn) => {
+    if (!el) return;
+    el.addEventListener(ev, (e) => {
+      try { fn(e); } catch (err) { console.error(err); toast("内部エラー：再読み込みして"); }
+    }, { passive: false });
   };
-  const [on, ...off] = map[name];
-  $(on).hidden = false;
-  off.forEach(sel => $(sel).hidden = true);
 
-  if (name === "flash") renderFlashReady();
-}
-
-/* ---------- theme ---------- */
-function bindTheme(){
-  const saved = localStorage.getItem(THEME_KEY);
-  if (saved === "light" || saved === "dark") setTheme(saved);
-  else {
-    const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-    setTheme(prefersDark ? "dark" : "light");
-  }
-
-  $("#themeBtn").addEventListener("click", ()=>{
-    const cur = document.documentElement.dataset.theme || "light";
-    setTheme(cur === "light" ? "dark" : "light");
-  });
-}
-function setTheme(mode){
-  document.documentElement.dataset.theme = mode;
-  localStorage.setItem(THEME_KEY, mode);
-  const metaTheme = document.querySelector('meta[name="theme-color"]');
-  if (metaTheme) metaTheme.setAttribute("content", mode === "dark" ? "#0d0f14" : "#ffffff");
-}
-
-/* ---------- paste modal + batch add ---------- */
-function bindPaste(){
-  $("#openPaste").addEventListener("click", ()=>openPaste(true));
-  $("#closePaste").addEventListener("click", ()=>openPaste(false));
-  $("#pasteModal").addEventListener("click", (e)=>{
-    if (e.target.id === "pasteModal") openPaste(false);
-  });
-
-  $("#bulkClear").addEventListener("click", ()=> $("#bulk").value = "");
-  $("#bulkAdd").addEventListener("click", async ()=>{
-    const raw = $("#bulk").value || "";
-    const words = parseWords(raw);
-    if (words.length === 0) return;
-
-    // create skeletons first (fast UI), then fetch in background
-    const created = [];
-    const existing = new Map(items.map(it => [normWord(it.word), it]));
-    for (const w of words){
-      const key = normWord(w);
-      if (!key) continue;
-
-      if (existing.has(key)){
-        // already exists -> skip
-        continue;
-      }
-      const it = {
-        id: String(now()) + "_" + Math.random().toString(16).slice(2),
-        word: key,
-        ja: "",             // 必須：後で取得
-        def: "",
-        syn: [],
-        tags: autoTags(key),
-        note: "",
-        level: 0,
-        createdAt: now(),
-        updatedAt: now(),
-        fetchedAt: 0
-      };
-      created.push(it);
-      existing.set(key, it);
+  const toast = (msg) => {
+    // 超軽量トースト
+    let t = document.querySelector(".toast");
+    if (!t) {
+      t = document.createElement("div");
+      t.className = "toast";
+      t.style.position = "fixed";
+      t.style.left = "12px";
+      t.style.right = "12px";
+      t.style.bottom = "16px";
+      t.style.zIndex = "1000";
+      t.style.padding = "12px 14px";
+      t.style.borderRadius = "14px";
+      t.style.fontWeight = "800";
+      t.style.border = "1px solid var(--line)";
+      t.style.background = "var(--card)";
+      t.style.boxShadow = "var(--shadow)";
+      document.body.appendChild(t);
     }
-
-    if (created.length === 0) return;
-
-    items = uniqByWord([...created, ...items]);
-    saveAll();
-    renderChips();
-    renderList();
-
-    // fetch details queue (with progress)
-    $("#queueBox").hidden = false;
-    queueAbort = false;
-    await runFetchQueue(created);
-    $("#queueBox").hidden = true;
-
-    $("#bulk").value = "";
-    openPaste(false);
-  });
-}
-function openPaste(open){
-  $("#pasteModal").hidden = !open;
-}
-function parseWords(text){
-  // split by spaces/newlines/comma/slash etc; keep a-z letters
-  const parts = (text||"")
-    .replace(/\r/g,"\n")
-    .split(/[\n,\/\t]+/g)
-    .flatMap(line => line.split(/\s+/g))
-    .map(x => normWord(x))
-    .filter(Boolean);
-
-  // unique keep order
-  const seen = new Set();
-  const out = [];
-  for (const p of parts){
-    if (seen.has(p)) continue;
-    seen.add(p);
-    out.push(p);
-  }
-  return out;
-}
-
-/* ---------- dictionary + translation ---------- */
-async function fetchDictionary(word){
-  // dictionaryapi.dev
-  const url = "https://api.dictionaryapi.dev/api/v2/entries/en/" + encodeURIComponent(word);
-  const res = await fetch(url);
-  if (!res.ok) return { def:"", syn:[] };
-
-  const data = await res.json();
-  const entry = data?.[0];
-  const meanings = entry?.meanings || [];
-
-  // def: first few definitions
-  const defs = [];
-  const syns = new Set();
-
-  for (const m of meanings){
-    const ds = (m?.definitions || []).slice(0, 2);
-    for (const d of ds){
-      if (d?.definition) defs.push(d.definition);
-      (d?.synonyms || []).forEach(s => syns.add(normWord(s)));
-    }
-    (m?.synonyms || []).forEach(s => syns.add(normWord(s)));
-    if (defs.length >= 3) break;
-  }
-
-  return { def: defs.join(" / "), syn: Array.from(syns).filter(Boolean).slice(0, 12) };
-}
-
-async function translateToJa(text){
-  // MyMemory (free, public). ネット状況で揺れるので fallback 前提。
-  // NOTE: 取得できた結果は編集で直せる。
-  const q = (text||"").trim();
-  if (!q) return "";
-  const url = "https://api.mymemory.translated.net/get?q=" + encodeURIComponent(q) + "&langpair=en|ja";
-  const res = await fetch(url);
-  if (!res.ok) return "";
-  const data = await res.json();
-  const out = data?.responseData?.translatedText || "";
-  // 変な混入を軽く掃除
-  return out.replace(/\s+/g," ").trim();
-}
-
-function autoTags(word){
-  // 固有名詞みたいな雑タグを避けて “内容タグ”寄りに軽く
-  // ここは「自動は薄く、本人が育てる」が最強
-  const tags = [];
-  if (word.endsWith("ly")) tags.push("adverb");
-  if (word.endsWith("tion") || word.endsWith("sion")) tags.push("noun");
-  if (word.endsWith("ive") || word.endsWith("al")) tags.push("adj");
-  if (word.endsWith("ize") || word.endsWith("ify")) tags.push("verb");
-  return tags;
-}
-
-/* ---------- fetch queue with concurrency ---------- */
-async function runFetchQueue(targets){
-  let done = 0;
-  const total = targets.length;
-
-  $("#queueText").textContent = `取得中… 0 / ${total}`;
-  $("#queueBar").style.width = "0%";
-
-  const work = targets.slice(); // queue
-  const workers = Array.from({length: LIMIT_CONCURRENCY}, async () => {
-    while(work.length && !queueAbort){
-      const it = work.shift();
-      await enrichItem(it);
-      done++;
-      $("#queueText").textContent = `取得中… ${done} / ${total}`;
-      $("#queueBar").style.width = `${Math.round(done/total*100)}%`;
-
-      // refresh list occasionally
-      if (done % 2 === 0 || done === total){
-        saveAll();
-        renderChips();
-        renderList();
-      }
-    }
-  });
-
-  await Promise.all(workers);
-  saveAll();
-  renderChips();
-  renderList();
-}
-
-async function enrichItem(it){
-  // already fetched recently?
-  const found = items.find(x => x.id === it.id);
-  if (!found) return;
-
-  // dictionary
-  const dic = await fetchDictionary(found.word);
-  found.def = dic.def || found.def || "";
-  found.syn = (dic.syn && dic.syn.length) ? dic.syn : (found.syn||[]);
-
-  // Japanese translation is mandatory target
-  if (!hasText(found.ja)){
-    const ja = await translateToJa(found.word);
-    found.ja = ja || found.ja || "";
-  }
-
-  found.fetchedAt = now();
-  found.updatedAt = now();
-}
-
-/* ---------- list rendering ---------- */
-function renderChips(){
-  const total = items.length;
-  const needJa = items.filter(it => !hasText(it.ja)).length;
-  const chips = [
-    { label:`単語 ${total}`, },
-    { label:`和訳未取得 ${needJa}`, }
-  ];
-
-  $("#statusChips").innerHTML = chips.map(c => `<span class="chip">${escapeHtml(c.label)}</span>`).join("");
-}
-
-function renderList(){
-  const q = ($("#search").value || "").trim().toLowerCase();
-
-  let filtered = items.slice();
-  if (q){
-    filtered = filtered.filter(it => {
-      const hay = [
-        it.word, it.ja, it.def,
-        (it.syn||[]).join(" "),
-        it.note,
-        (it.tags||[]).join(" ")
-      ].join(" ").toLowerCase();
-      return hay.includes(q);
-    });
-  }
-
-  $("#listEmpty").hidden = filtered.length !== 0;
-
-  const html = filtered.slice(0, 200).map(it => {
-    const tags = (it.tags||[]).slice(0, 6).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join("");
-    const badge = `暗記度 ${it.level ?? 0}`;
-    const jaLine = hasText(it.ja) ? escapeHtml(it.ja) : `<span class="muted">（和訳 取得中 / 未取得）</span>`;
-    return `
-      <div class="item" data-open="${escapeHtml(it.id)}">
-        <div class="item-top">
-          <div>
-            <div class="word">${escapeHtml(it.word)}</div>
-            <div class="meta2">${jaLine}</div>
-            <div class="tags">${tags}</div>
-          </div>
-          <div class="badge">${escapeHtml(badge)}</div>
-        </div>
-        <div class="meta2">更新 ${escapeHtml(fmtDate(it.updatedAt || it.createdAt))}</div>
-      </div>
-    `;
-  }).join("");
-
-  $("#list").innerHTML = html;
-
-  // bind open detail
-  $$("[data-open]").forEach(el=>{
-    el.addEventListener("click", ()=>{
-      const id = el.getAttribute("data-open");
-      openDetail(id);
-    });
-  });
-}
-
-/* ---------- detail modal ---------- */
-let detailId = null;
-function bindDetail(){
-  $("#closeDetail").addEventListener("click", ()=>closeDetail());
-  $("#detailModal").addEventListener("click", (e)=>{
-    if (e.target.id === "detailModal") closeDetail();
-  });
-
-  $("#saveDetail").addEventListener("click", ()=>{
-    const it = items.find(x => x.id === detailId);
-    if (!it) return;
-
-    it.ja = ($("#detailJa").value||"").trim();
-    it.note = ($("#detailNote").value||"").trim();
-
-    const tagStr = ($("#detailTags").value||"").trim();
-    it.tags = tagStr ? tagStr.split(/\s+/g).map(t=>t.trim()).filter(Boolean).slice(0,20) : [];
-    it.updatedAt = now();
-
-    saveAll();
-    renderChips();
-    renderList();
-    closeDetail();
-  });
-
-  $("#trashOne").addEventListener("click", ()=>{
-    const it = items.find(x => x.id === detailId);
-    if (!it) return;
-    moveToTrash([it.id], "one");
-    closeDetail();
-  });
-}
-
-function openDetail(id){
-  const it = items.find(x => x.id === id);
-  if (!it) return;
-  detailId = id;
-
-  $("#detailTitle").textContent = it.word;
-  $("#detailJa").value = it.ja || "";
-  $("#detailNote").value = it.note || "";
-  $("#detailTags").value = (it.tags||[]).join(" ");
-
-  $("#detailDef").textContent = it.def || "—";
-  $("#detailSyn").textContent = (it.syn && it.syn.length) ? it.syn.join(", ") : "—";
-
-  $("#detailModal").hidden = false;
-}
-function closeDetail(){
-  $("#detailModal").hidden = true;
-  detailId = null;
-}
-
-/* ---------- manage (trash / export / import / undo) ---------- */
-function bindManage(){
-  $("#exportBtn").addEventListener("click", ()=>{
-    const payload = JSON.stringify({ items, trash, meta:{...meta, backup:null, lastUndo:null} }, null, 2);
-    try{
-      navigator.clipboard.writeText(payload);
-      toast("コピーした。メモ帳に貼って保存OK。");
-    }catch{
-      window.prompt("これをコピーして保存:", payload);
-    }
-  });
-
-  $("#importBtn").addEventListener("click", ()=>{
-    const txt = window.prompt("エクスポートしたJSONを貼り付けてOK:");
-    if (!txt) return;
-    try{
-      const obj = JSON.parse(txt);
-      if (!obj || !Array.isArray(obj.items)) throw new Error();
-      items = uniqByWord(obj.items);
-      trash = Array.isArray(obj.trash) ? obj.trash : [];
-      meta = { ...meta, tutorialDone: meta.tutorialDone };
-      saveAll();
-      renderChips(); renderList(); renderTrash();
-      toast("インポート完了。");
-    }catch{
-      toast("形式が合ってなさそう。");
-    }
-  });
-
-  $("#backupBtn").addEventListener("click", ()=>{
-    // 直前バックアップを保存しておく（自動）
-    if (meta.backup){
-      const ok = confirm("バックアップに戻す？（今の状態は取り消しに入る）");
-      if (!ok) return;
-      meta.lastUndo = { items: structuredClone(items), trash: structuredClone(trash) };
-      items = structuredClone(meta.backup.items);
-      trash = structuredClone(meta.backup.trash);
-      saveAll();
-      renderChips(); renderList(); renderTrash();
-      updateUndoBtn();
-      toast("復元した。");
-      return;
-    }
-    // 今の状態をバックアップ化
-    meta.backup = { items: structuredClone(items), trash: structuredClone(trash), at: now() };
-    saveAll();
-    toast("バックアップを保存した。");
-  });
-
-  $("#undoBtn").addEventListener("click", ()=>{
-    if (!meta.lastUndo) return;
-    const tmp = { items: structuredClone(items), trash: structuredClone(trash) };
-    items = structuredClone(meta.lastUndo.items);
-    trash = structuredClone(meta.lastUndo.trash);
-    meta.lastUndo = tmp; // swap
-    saveAll();
-    renderChips(); renderList(); renderTrash();
-    updateUndoBtn();
-    toast("取り消した。");
-  });
-
-  // move all to trash (safe)
-  $("#moveAllToTrash").addEventListener("click", ()=>{
-    if (items.length === 0) return;
-    const ok = confirm("全消去（ゴミ箱へ）に進む？（復元できる）");
-    if (!ok) return;
-    moveToTrash(items.map(it=>it.id), "all");
-  });
-
-  // empty trash (long press)
-  longPress($("#emptyTrash"), 900, ()=>{
-    if (trash.length === 0) return;
-    const ok = confirm("ゴミ箱を空にする？（完全削除）");
-    if (!ok) return;
-    meta.lastUndo = { items: structuredClone(items), trash: structuredClone(trash) };
-    trash = [];
-    saveAll();
-    renderTrash();
-    updateUndoBtn();
-    toast("ゴミ箱を空にした。");
-  });
-
-  updateUndoBtn();
-}
-
-function updateUndoBtn(){
-  $("#undoBtn").disabled = !meta.lastUndo;
-}
-
-function moveToTrash(ids, reason){
-  meta.lastUndo = { items: structuredClone(items), trash: structuredClone(trash) };
-  meta.backup = { items: structuredClone(items), trash: structuredClone(trash), at: now() };
-
-  const move = new Set(ids);
-  const keep = [];
-  const moved = [];
-  for (const it of items){
-    if (move.has(it.id)){
-      moved.push({ ...it, trashedAt: now() });
-    }else{
-      keep.push(it);
-    }
-  }
-  items = keep;
-  trash = [...moved, ...trash];
-
-  saveAll();
-  renderChips(); renderList(); renderTrash();
-  updateUndoBtn();
-  toast(reason === "all" ? "ゴミ箱へ移動した。" : "移動した。");
-}
-
-function renderTrash(){
-  $("#trashEmpty").textContent = trash.length ? "" : "ゴミ箱は空。";
-
-  $("#trashList").innerHTML = trash.slice(0, 120).map(it => {
-    return `
-      <div class="item">
-        <div class="item-top">
-          <div>
-            <div class="word">${escapeHtml(it.word)}</div>
-            <div class="meta2">${hasText(it.ja) ? escapeHtml(it.ja) : `<span class="muted">（和訳なし）</span>`}</div>
-            <div class="meta2">削除 ${escapeHtml(fmtDate(it.trashedAt || it.updatedAt || it.createdAt))}</div>
-          </div>
-          <button class="btn" data-restore="${escapeHtml(it.id)}" type="button">復元</button>
-        </div>
-      </div>
-    `;
-  }).join("");
-
-  $$("[data-restore]").forEach(btn=>{
-    btn.addEventListener("click", ()=>{
-      const id = btn.getAttribute("data-restore");
-      restoreOne(id);
-    });
-  });
-}
-
-function restoreOne(id){
-  meta.lastUndo = { items: structuredClone(items), trash: structuredClone(trash) };
-  const keepTrash = [];
-  let restored = null;
-  for (const it of trash){
-    if (it.id === id) restored = it;
-    else keepTrash.push(it);
-  }
-  if (!restored) return;
-  trash = keepTrash;
-  items = uniqByWord([restored, ...items]);
-  saveAll();
-  renderChips(); renderList(); renderTrash();
-  updateUndoBtn();
-  toast("復元した。");
-}
-
-function longPress(el, ms, fn){
-  let timer = null;
-  const start = () => {
-    timer = setTimeout(()=>{
-      timer = null;
-      fn();
-    }, ms);
+    t.textContent = msg;
+    t.style.display = "block";
+    clearTimeout(t._tm);
+    t.showing = true;
+    t._tm = setTimeout(() => (t.style.display = "none"), 1800);
   };
-  const cancel = () => {
-    if (timer){ clearTimeout(timer); timer = null; }
+
+  const load = (k, def) => {
+    try {
+      const raw = localStorage.getItem(k);
+      return raw ? JSON.parse(raw) : def;
+    } catch {
+      return def;
+    }
   };
-  el.addEventListener("touchstart", start, {passive:true});
-  el.addEventListener("touchend", cancel);
-  el.addEventListener("touchcancel", cancel);
-  el.addEventListener("mousedown", start);
-  el.addEventListener("mouseup", cancel);
-  el.addEventListener("mouseleave", cancel);
-}
+  const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
 
-function toast(msg){
-  // 軽量：alertより邪魔しない
-  const d = document.createElement("div");
-  d.textContent = msg;
-  d.style.position="fixed";
-  d.style.left="50%";
-  d.style.bottom="18px";
-  d.style.transform="translateX(-50%)";
-  d.style.background="rgba(0,0,0,.82)";
-  d.style.color="#fff";
-  d.style.padding="10px 12px";
-  d.style.borderRadius="12px";
-  d.style.fontWeight="800";
-  d.style.fontSize="13px";
-  d.style.zIndex="999";
-  document.body.appendChild(d);
-  setTimeout(()=>d.remove(), 1300);
-}
+  // ---- state
+  let data = load(KEY, []);
+  let trash = load(TRASH_KEY, []);
+  let filter = "";
+  let currentView = "list";
 
-/* ---------- flash ---------- */
-function bindFlash(){
-  $("#exitFlash").addEventListener("click", ()=>{
-    $("#flashStage").hidden = true;
-    showView("list");
-  });
+  // flash state
+  let deck = [];
+  let idx = 0;
+  let revealed = false;
 
-  $("#shuffleFlash").addEventListener("click", ()=>{
-    // toggle shuffle by rebuilding deck later
-    toast("次の開始からシャッフル。");
-    meta.flashShuffle = !meta.flashShuffle;
-    saveAll();
-  });
+  // ---- theme
+  function setTheme(theme) {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem(THEME_KEY, theme);
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", theme === "dark" ? "#0f1116" : "#ffffff");
+  }
+  function initTheme() {
+    const stored = localStorage.getItem(THEME_KEY);
+    if (stored === "dark" || stored === "light") setTheme(stored);
+    else setTheme("light");
+  }
 
-  $("#startFlash").addEventListener("click", ()=>{
-    buildFlashDeck();
-    if (flashDeck.length === 0){
-      $("#flashEmpty").hidden = false;
-      $("#flashStage").hidden = true;
-      return;
+  // ---- normalize
+  function normWord(w) {
+    return (w || "").trim().toLowerCase().replace(/[^a-z'-]/g, "");
+  }
+  function splitWords(text) {
+    return (text || "")
+      .split(/[\s,]+/)
+      .map(normWord)
+      .filter(Boolean);
+  }
+
+  // ---- api: Japanese translation (free public: MyMemory)
+  async function fetchJa(word) {
+    // MyMemory is rate-limited; failure is acceptable.
+    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(word)}&langpair=en|ja`;
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) throw new Error("net");
+    const j = await res.json();
+    const out = (j?.responseData?.translatedText || "").trim();
+    if (!out) throw new Error("empty");
+    return out;
+  }
+
+  // ---- UI helpers
+  function showView(name) {
+    currentView = name;
+    const views = ["viewList", "viewFlash", "viewManage"];
+    for (const v of views) {
+      const el = $(v);
+      if (el) el.hidden = (v !== `view${name[0].toUpperCase()}${name.slice(1)}`);
     }
-    $("#flashEmpty").hidden = true;
-    $("#flashStage").hidden = false;
-    flashIdx = 0;
-    flashRevealed = false;
-    showFlashCard();
-  });
-
-  $("#reveal").addEventListener("click", ()=>{
-    revealAnswer();
-  });
-
-  $("#next").addEventListener("click", ()=>{
-    // reveal then rate
-    if (!flashRevealed){
-      revealAnswer();
-      return;
-    }
-    // if rated already -> move next
-    if ($("#rateBox").hidden === false){
-      toast("評価を押す。");
-      return;
-    }
-    goNextFlash();
-  });
-
-  $("#rateBox").addEventListener("click", (e)=>{
-    const btn = e.target.closest("[data-rate]");
-    if (!btn) return;
-    const rate = Number(btn.getAttribute("data-rate"));
-    rateFlash(rate);
-  });
-}
-
-function renderFlashReady(){
-  // show empty if no items
-  $("#flashEmpty").hidden = items.length !== 0;
-  $("#flashStage").hidden = true;
-}
-
-function buildFlashDeck(){
-  const count = Number($("#flashCount").value || 20);
-  const filter = $("#flashFilter").value;
-
-  let base = items.slice();
-  if (filter !== "all"){
-    const lvl = Number(filter);
-    base = base.filter(it => (it.level ?? 0) === lvl);
   }
 
-  // optional shuffle
-  if (meta.flashShuffle){
-    base = shuffle(base);
-  }else{
-    // stable: low level first
-    base.sort((a,b)=> (a.level??0) - (b.level??0) || (b.updatedAt??0) - (a.updatedAt??0));
-  }
+  function setChips() {
+    const chips = $("statusChips");
+    if (!chips) return;
 
-  flashDeck = base.slice(0, count).map(it => it.id);
-}
+    const total = data.length;
+    const jaMissing = data.filter(x => !x.ja).length;
 
-function showFlashCard(){
-  const total = flashDeck.length;
-  $("#flashProgress").textContent = `${flashIdx+1} / ${total}`;
-
-  const it = items.find(x => x.id === flashDeck[flashIdx]);
-  if (!it){
-    goNextFlash();
-    return;
-  }
-
-  $("#flashWord").textContent = it.word;
-  $("#flashJa").textContent = it.ja || "（和訳 取得中 / 未取得）";
-  $("#flashDef").textContent = it.def || "—";
-
-  $("#flashAnswer").hidden = true;
-  $("#rateBox").hidden = true;
-  $("#flashHint").textContent = "答えを出すと評価ボタンが出る。";
-  flashRevealed = false;
-}
-
-function revealAnswer(){
-  $("#flashAnswer").hidden = false;
-  $("#rateBox").hidden = false;
-  flashRevealed = true;
-  $("#flashHint").textContent = "評価を押すと次へ進む。";
-}
-
-function rateFlash(level){
-  const it = items.find(x => x.id === flashDeck[flashIdx]);
-  if (it){
-    it.level = level;
-    it.updatedAt = now();
-    saveAll();
-    renderChips();
-    renderList();
-  }
-  goNextFlash();
-}
-
-function goNextFlash(){
-  flashIdx++;
-  if (flashIdx >= flashDeck.length){
-    $("#flashStage").hidden = true;
-    toast("終了。");
-    showView("list");
-    return;
-  }
-  showFlashCard();
-}
-
-function shuffle(arr){
-  const a = arr.slice();
-  for (let i=a.length-1;i>0;i--){
-    const j = Math.floor(Math.random()*(i+1));
-    [a[i],a[j]]=[a[j],a[i]];
-  }
-  return a;
-}
-
-/* ---------- tutorial (swipe) ---------- */
-function bindTutorial(){
-  // overlay close by outside tap
-  $("#tutOverlay").addEventListener("click", (e)=>{
-    if (e.target.id === "tutOverlay") closeTutorial();
-  });
-
-  $("#tutSkip").addEventListener("click", ()=>{
-    meta.tutorialDone = true;
-    saveAll();
-    closeTutorial();
-  });
-
-  $("#tutPrev").addEventListener("click", ()=>tutMove(-1));
-  $("#tutNext").addEventListener("click", ()=>tutMove(+1));
-
-  // dots
-  renderTutDots();
-  $("#tutRail").addEventListener("scroll", ()=>syncTutDots(), {passive:true});
-}
-
-function ensureFirstOpenTutorial(){
-  if (!meta.tutorialDone){
-    openTutorial(false);
-  }
-}
-
-function openTutorial(fromButton){
-  $("#tutOverlay").hidden = false;
-  // reset to first page when opened from button
-  if (fromButton){
-    $("#tutRail").scrollTo({left:0, behavior:"instant"});
-    syncTutDots();
-  }
-}
-function closeTutorial(){
-  $("#tutOverlay").hidden = true;
-}
-
-function renderTutDots(){
-  const pages = $$("#tutRail .tut-page").length;
-  const dots = [];
-  for (let i=0;i<pages;i++){
-    dots.push(`<span class="dot ${i===0?"on":""}" data-dot="${i}"></span>`);
-  }
-  $("#tutDots").innerHTML = dots.join("");
-}
-
-function currentTutIndex(){
-  const rail = $("#tutRail");
-  const w = rail.clientWidth;
-  const idx = Math.round(rail.scrollLeft / w);
-  return Math.max(0, idx);
-}
-
-function tutMove(dir){
-  const rail = $("#tutRail");
-  const pages = $$("#tutRail .tut-page").length;
-  const w = rail.clientWidth;
-  let idx = currentTutIndex() + dir;
-  idx = Math.max(0, Math.min(pages-1, idx));
-  rail.scrollTo({left: idx*w, behavior:"smooth"});
-
-  // final page next -> complete
-  if (idx === pages-1){
-    $("#tutNext").textContent = "完了";
-    $("#tutNext").onclick = ()=>{
-      meta.tutorialDone = true;
-      saveAll();
-      closeTutorial();
-      $("#tutNext").onclick = ()=>tutMove(+1); // restore
-      $("#tutNext").textContent = "次へ";
+    chips.innerHTML = "";
+    const mk = (txt) => {
+      const d = document.createElement("div");
+      d.className = "chip";
+      d.textContent = txt;
+      chips.appendChild(d);
     };
-  }else{
-    $("#tutNext").textContent = "次へ";
-    $("#tutNext").onclick = ()=>tutMove(+1);
-  }
-  syncTutDots();
-}
-
-function syncTutDots(){
-  const idx = currentTutIndex();
-  $$("#tutDots .dot").forEach((d,i)=>{
-    d.classList.toggle("on", i===idx);
-  });
-  $("#tutPrev").disabled = (idx === 0);
-}
-
-/* ---------- quick fixes for “dead buttons” ---------- */
-/* ここは重要：overlayやscrollでタップが拾えない事故を潰す */
-document.addEventListener("touchstart", ()=>{}, {passive:true});
-
-// ===== Emergency tutorial escape (絶対詰まない保険) =====
-(function tutorialFailsafe(){
-  const $ = (s)=>document.querySelector(s);
-
-  function hideTutorial(){
-    const t = $("#tuto") || $("#tutorial") || document.querySelector("[data-tutorial]");
-    if (t) t.style.display = "none";
-    document.documentElement.style.overflow = "";
-    document.body.style.overflow = "";
+    mk(`単語：${total}`);
+    mk(`和訳未取得：${jaMissing}`);
   }
 
-  // 1) 3秒後に強制解除（JSの他部分が死んでも脱出できる）
-  setTimeout(hideTutorial, 3000);
+  function match(item, q) {
+    if (!q) return true;
+    const s = q.toLowerCase();
+    return (
+      (item.w || "").includes(s) ||
+      (item.ja || "").toLowerCase().includes(s) ||
+      (item.memo || "").toLowerCase().includes(s) ||
+      (item.tags || []).join(" ").toLowerCase().includes(s)
+    );
+  }
 
-  // 2) どこでも長押し(600ms)で解除
-  let pressTimer = null;
-  window.addEventListener("pointerdown", () => {
-    pressTimer = setTimeout(hideTutorial, 600);
-  }, {capture:true});
-  window.addEventListener("pointerup", () => {
-    if (pressTimer) clearTimeout(pressTimer);
-    pressTimer = null;
-  }, {capture:true});
-  window.addEventListener("pointercancel", () => {
-    if (pressTimer) clearTimeout(pressTimer);
-    pressTimer = null;
-  }, {capture:true});
+  function renderList() {
+    const list = $("list");
+    const empty = $("listEmpty");
+    if (!list || !empty) return;
 
-  // 3) スキップ/完了/閉じる系ボタンを“捕まえて”確実に効かせる
-  const ids = ["skip","done","closeTutorial","tutoSkip","tutoDone"];
-  ids.forEach(id=>{
-    const el = document.getElementById(id);
-    if (el) el.addEventListener("click", hideTutorial, {capture:true});
-  });
+    const q = filter.trim().toLowerCase();
+    const items = data.filter(x => match(x, q));
 
-  // 4) ボタンに data-skip / data-done が付いてる場合も拾う
-  document.addEventListener("click", (e)=>{
-    const target = e.target.closest?.("[data-skip],[data-done],[data-close]");
-    if (target) hideTutorial();
-  }, {capture:true});
+    list.innerHTML = "";
+    empty.hidden = items.length !== 0;
+
+    for (const it of items) {
+      const card = document.createElement("div");
+      card.className = "item";
+      card.dataset.word = it.w;
+
+      const top = document.createElement("div");
+      top.className = "item-top";
+
+      const w = document.createElement("div");
+      w.className = "word";
+      w.textContent = it.w;
+
+      const b = document.createElement("div");
+      b.className = "badge";
+      b.textContent = `暗記度 ${it.rate ?? 0}`;
+
+      top.appendChild(w);
+      top.appendChild(b);
+
+      const ja = document.createElement("div");
+      ja.className = "item-ja";
+      ja.textContent = it.ja ? it.ja : "（和訳 未取得）";
+
+      card.appendChild(top);
+      card.appendChild(ja);
+
+      // tap -> simple detail edit (prompt)
+      safeOn(card, "click", () => {
+        const memo = prompt("メモ（空で削除）", it.memo || "");
+        if (memo === null) return;
+        it.memo = memo.trim();
+        save(KEY, data);
+        renderList();
+      });
+
+      list.appendChild(card);
+    }
+  }
+
+  // ---- paste modal
+  function openModal(id) { const m = $(id); if (m) m.hidden = false; }
+  function closeModal(id) { const m = $(id); if (m) m.hidden = true; }
+
+  async function addWords(words) {
+    if (!words.length) return;
+
+    // dedupe
+    const existing = new Set(data.map(x => x.w));
+    const added = [];
+    for (const w of words) {
+      if (existing.has(w)) continue;
+      const item = { w, ja: "", memo: "", tags: [], rate: 0 };
+      data.unshift(item);
+      existing.add(w);
+      added.push(item);
+    }
+    save(KEY, data);
+    setChips();
+    renderList();
+
+    if (!added.length) { toast("追加済み"); return; }
+    toast(`追加：${added.length}`);
+
+    // fetch ja sequentially (lightweight)
+    for (const it of added) {
+      try {
+        it.ja = await fetchJa(it.w);
+      } catch {
+        // leave empty, do not freeze
+      }
+      save(KEY, data);
+      // minimal re-render every few items
+    }
+    setChips();
+    renderList();
+    toast("和訳の取得が終わった");
+  }
+
+  // ---- flash
+  function buildDeck(count, shuffle) {
+    const src = data.slice(); // copy
+    if (!src.length) return [];
+
+    const pool = shuffle ? shuffleArr(src) : src;
+    const n = Math.min(Number(count) || 20, pool.length);
+    return pool.slice(0, n);
+  }
+  function shuffleArr(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = (Math.random() * (i + 1)) | 0;
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function flashResetUI() {
+    const stage = $("flashStage");
+    const empty = $("flashEmpty");
+    const done = $("flashDone");
+    if (stage) stage.hidden = true;
+    if (empty) empty.hidden = true;
+    if (done) done.hidden = true;
+  }
+
+  function flashShowCard() {
+    const stage = $("flashStage");
+    const empty = $("flashEmpty");
+    const done = $("flashDone");
+    const prog = $("flashProgress");
+    const word = $("flashWord");
+    const ans = $("flashAnswer");
+    const ja = $("flashJa");
+
+    if (!stage || !empty || !done || !prog || !word || !ans || !ja) return;
+
+    if (!deck.length) {
+      stage.hidden = true;
+      done.hidden = true;
+      empty.hidden = false;
+      return;
+    }
+    if (idx >= deck.length) {
+      stage.hidden = true;
+      empty.hidden = true;
+      done.hidden = false;
+      return;
+    }
+
+    revealed = false;
+    ans.hidden = true;
+
+    const it = deck[idx];
+    prog.textContent = `${idx + 1} / ${deck.length}`;
+    word.textContent = it.w;
+    ja.textContent = it.ja ? it.ja : "（和訳 未取得）";
+
+    stage.hidden = false;
+    empty.hidden = true;
+    done.hidden = true;
+  }
+
+  function revealJa() {
+    const ans = $("flashAnswer");
+    if (!ans) return;
+    ans.hidden = false;
+    revealed = true;
+  }
+
+  function rateFlash(r) {
+    if (!deck.length || idx >= deck.length) return;
+    // 「答え」見てからだけ評価できる
+    if (!revealed) { toast("先に「答え」"); return; }
+
+    const it = deck[idx];
+    it.rate = Number(r);
+
+    save(KEY, data);
+    idx++;
+    flashShowCard();
+  }
+
+  function skipFlash() {
+    if (!deck.length) return;
+    idx++;
+    flashShowCard();
+  }
+
+  // ---- tour (slide)
+  const tourPages = [
+    { t: "① 貼って追加", b: "英単語をまとめて貼って「追加」。" },
+    { t: "② 和訳が自動で付く", b: "追加後、和訳を順に取得。失敗しても止まらない。" },
+    { t: "③ フラッシュで確認", b: "英単語 → 答えで和訳 → 評価で次へ。出題数で終わる。" },
+    { t: "④ データを守る", b: "エクスポートでバックアップ。全消去はゴミ箱へ移す方式。" },
+  ];
+  let tourIdx = 0;
+
+  function tourRender() {
+    const card = $("tourCard");
+    const dots = $("tourDots");
+    const next = $("tourNext");
+    const prev = $("tourPrev");
+    if (!card || !dots || !next || !prev) return;
+
+    const p = tourPages[tourIdx];
+    card.innerHTML = `<div style="font-weight:900;font-size:16px;margin-bottom:6px;">${p.t}</div><div>${p.b}</div>`;
+
+    dots.innerHTML = "";
+    for (let i = 0; i < tourPages.length; i++) {
+      const d = document.createElement("div");
+      d.className = "dot" + (i === tourIdx ? " on" : "");
+      dots.appendChild(d);
+    }
+
+    prev.disabled = tourIdx === 0;
+    next.textContent = (tourIdx === tourPages.length - 1) ? "完了" : "次へ";
+  }
+
+  function openTour(firstTime = false) {
+    openModal("tourModal");
+    tourIdx = 0;
+    tourRender();
+    if (firstTime) localStorage.setItem(TOUR_SEEN, "1");
+  }
+
+  function closeTour() {
+    closeModal("tourModal");
+  }
+
+  // ---- manage
+  function exportData() {
+    const box = $("ioBox");
+    if (!box) return;
+    const payload = { data, trash, v: 2, at: new Date().toISOString() };
+    box.value = JSON.stringify(payload, null, 2);
+    box.focus();
+    box.select();
+    toast("エクスポートした");
+  }
+
+  function importData() {
+    const box = $("ioBox");
+    if (!box) return;
+    let obj;
+    try { obj = JSON.parse(box.value || ""); } catch { toast("JSONが壊れてる"); return; }
+
+    const incoming = Array.isArray(obj?.data) ? obj.data : null;
+    if (!incoming) { toast("形式が違う"); return; }
+
+    // merge by word
+    const map = new Map(data.map(x => [x.w, x]));
+    for (const it of incoming) {
+      if (!it?.w) continue;
+      const w = normWord(it.w);
+      if (!w) continue;
+      if (!map.has(w)) {
+        map.set(w, { w, ja: it.ja || "", memo: it.memo || "", tags: it.tags || [], rate: it.rate ?? 0 });
+      } else {
+        // prefer existing; fill blanks
+        const cur = map.get(w);
+        if (!cur.ja && it.ja) cur.ja = it.ja;
+        if (!cur.memo && it.memo) cur.memo = it.memo;
+        if (!cur.tags?.length && it.tags?.length) cur.tags = it.tags;
+      }
+    }
+    data = Array.from(map.values());
+    save(KEY, data);
+    setChips();
+    renderList();
+    toast("インポートした（マージ）");
+  }
+
+  function trashAll() {
+    if (!data.length) { toast("空"); return; }
+    trash = data.concat(trash);
+    data = [];
+    save(KEY, data);
+    save(TRASH_KEY, trash);
+    setChips();
+    renderList();
+    toast("全消去→ゴミ箱へ");
+  }
+  function undoTrash() {
+    if (!trash.length) { toast("ゴミ箱が空"); return; }
+    data = trash.concat(data);
+    trash = [];
+    save(KEY, data);
+    save(TRASH_KEY, trash);
+    setChips();
+    renderList();
+    toast("復元した");
+  }
+
+  // ---- SW: update-safe (and recover)
+  async function setupSW() {
+    if (!("serviceWorker" in navigator)) return;
+    try {
+      const reg = await navigator.serviceWorker.register("./sw.js", { scope: "./" });
+      // update check
+      reg.update?.();
+      // force reload when new SW takes over
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        // one-time reload
+        location.reload();
+      });
+    } catch (e) {
+      console.warn("SW failed", e);
+    }
+  }
+
+  // ---- boot
+  function boot() {
+    initTheme();
+    setChips();
+    renderList();
+    showView("list");
+
+    // bind: top actions
+    safeOn($("themeBtn"), "click", () => {
+      const cur = document.documentElement.dataset.theme || "light";
+      setTheme(cur === "light" ? "dark" : "light");
+    });
+    safeOn($("helpBtn"), "click", () => openTour(false));
+
+    // search
+    safeOn($("search"), "input", (e) => {
+      filter = e.target.value || "";
+      renderList();
+    });
+    safeOn($("clearSearch"), "click", () => {
+      const s = $("search");
+      if (s) s.value = "";
+      filter = "";
+      renderList();
+    });
+
+    // navigation
+    safeOn($("toList"), "click", () => showView("list"));
+    safeOn($("toFlash"), "click", () => { showView("flash"); });
+    safeOn($("toManage"), "click", () => showView("manage"));
+
+    // paste modal
+    safeOn($("openPaste"), "click", () => openModal("pasteModal"));
+    safeOn($("pasteClose"), "click", () => closeModal("pasteModal"));
+    safeOn($("pasteX"), "click", () => closeModal("pasteModal"));
+    safeOn($("pasteClear"), "click", () => { const b = $("pasteBox"); if (b) b.value = ""; });
+    safeOn($("pasteAdd"), "click", async () => {
+      const b = $("pasteBox");
+      const words = splitWords(b?.value || "");
+      await addWords(words);
+      closeModal("pasteModal");
+      if (b) b.value = "";
+    });
+
+    // flash controls
+    safeOn($("exitFlash"), "click", () => {
+      flashResetUI();
+      showView("list");
+    });
+    safeOn($("startFlash"), "click", () => {
+      flashResetUI();
+      const cnt = $("flashCount")?.value || "20";
+      const sh = $("flashShuffle")?.checked ?? true;
+      deck = buildDeck(cnt, sh);
+      idx = 0;
+      flashShowCard();
+    });
+    safeOn($("revealAnswer"), "click", () => revealJa());
+    safeOn($("skipCard"), "click", () => skipFlash());
+    safeOn($("backToTop"), "click", () => { flashResetUI(); showView("list"); });
+
+    // rate buttons (event delegation)
+    const flashView = $("viewFlash");
+    safeOn(flashView, "click", (e) => {
+      const btn = e.target?.closest?.(".rate");
+      if (!btn) return;
+      const r = btn.getAttribute("data-rate");
+      rateFlash(r);
+    });
+
+    // manage
+    safeOn($("exportBtn"), "click", exportData);
+    safeOn($("importBtn"), "click", importData);
+    safeOn($("trashAllBtn"), "click", trashAll);
+    safeOn($("undoBtn"), "click", undoTrash);
+
+    // tour modal bind (重要：ここがズレると全ボタン死ぬ)
+    safeOn($("tourClose"), "click", closeTour);
+    safeOn($("tourSkip"), "click", () => { localStorage.setItem(TOUR_SEEN, "1"); closeTour(); });
+    safeOn($("tourPrev"), "click", () => { tourIdx = Math.max(0, tourIdx - 1); tourRender(); });
+    safeOn($("tourNext"), "click", () => {
+      if (tourIdx >= tourPages.length - 1) { localStorage.setItem(TOUR_SEEN, "1"); closeTour(); return; }
+      tourIdx++; tourRender();
+    });
+
+    // first time tour
+    if (!localStorage.getItem(TOUR_SEEN)) {
+      openTour(true);
+    }
+
+    // SW last
+    setupSW();
+  }
+
+  document.addEventListener("DOMContentLoaded", boot);
 })();
