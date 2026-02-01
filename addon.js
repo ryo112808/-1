@@ -1,14 +1,13 @@
-/* addon.js (FULL MOBILE EDITION)
-   Features:
+/* addon.js (FULL MOBILE EDITION v4)
    - Theme toggle (light/dark) saved in localStorage
-   - Captures the app's word-store automatically by hooking Storage.setItem + initial scan
+   - Captures word-store automatically (Storage.setItem hook + initial scan)
    - CEFR auto-estimation via Datamuse frequency (cached)
-   - Fullscreen Test:
-       * Start screen (range settings: count, CEFR min, target, shuffle)
-       * Touch-only controls (no keyboard needed)
-       * Fixed bottom answer bars (top bar: show/next, bottom bar: 4 ratings with labels)
-       * Haptic feedback (if supported)
-   - No scrolling inside test (100vh)
+   - Fullscreen Test (mobile-first):
+       * Start screen with range settings
+       * Touch-only controls
+       * Fixed bottom answer bars (CSS in addon-ui.css recommended)
+       * 4 ratings with labels
+   - Fix: Answer showing "—" -> robust Japanese meaning extraction (string/array/object)
 */
 
 (() => {
@@ -67,7 +66,13 @@
   // Word store capture
   // =========================
   const WORD_FIELDS = ["word", "term", "headword", "title", "en", "english"];
-  const JA_FIELDS = ["ja", "jp", "meaning", "translation", "japanese"];
+  // ★ Robust JA fields (many possible keys)
+  const JA_FIELDS = [
+    "ja","jp","jaText","japanese","japaneseText",
+    "meaning","meaningJa","meaningJP","meaning_jp","meaning_ja",
+    "translation","trans","tr","gloss","glossJa","glossJP",
+    "noteJa","noteJP","note_ja","note_jp"
+  ];
   const DEF_FIELDS = ["def", "definition", "enDef", "englishDefinition"];
   const MEM_FIELDS = ["mem", "memory", "level", "rank", "stage"];
 
@@ -90,10 +95,58 @@
     return null;
   }
 
+  // ★ Robust meaning extractor (string/array/object)
+  function extractJapaneseMeaning(raw) {
+    // 1) direct string fields
+    let ja = pickStr(raw, JA_FIELDS);
+    if (ja) return ja;
+
+    // 2) meaning: ["..",".."]
+    const m = raw?.meaning;
+    if (Array.isArray(m)) {
+      const joined = m.filter(x => typeof x === "string" && x.trim()).join(" / ").trim();
+      if (joined) return joined;
+    }
+
+    // 3) translation: {ja:".."} / {jp:".."} / {japanese:".."}
+    const t = raw?.translation;
+    if (t && typeof t === "object") {
+      const tja =
+        (typeof t.ja === "string" && t.ja.trim()) ? t.ja.trim() :
+        (typeof t.jp === "string" && t.jp.trim()) ? t.jp.trim() :
+        (typeof t.japanese === "string" && t.japanese.trim()) ? t.japanese.trim() :
+        "";
+      if (tja) return tja;
+    }
+
+    // 4) meanings: [{ja:".."}] or [{jp:".."}] etc
+    const ms = raw?.meanings;
+    if (Array.isArray(ms)) {
+      const pick = ms.map(x => {
+        if (!x || typeof x !== "object") return "";
+        if (typeof x.ja === "string" && x.ja.trim()) return x.ja.trim();
+        if (typeof x.jp === "string" && x.jp.trim()) return x.jp.trim();
+        if (typeof x.japanese === "string" && x.japanese.trim()) return x.japanese.trim();
+        if (typeof x.meaningJa === "string" && x.meaningJa.trim()) return x.meaningJa.trim();
+        return "";
+      }).filter(Boolean);
+      if (pick.length) return pick.join(" / ").trim();
+    }
+
+    // 5) note / memo style
+    const note = raw?.note || raw?.memo;
+    if (typeof note === "string" && note.trim()) return note.trim();
+
+    // nothing found
+    return "";
+  }
+
   function normalizeEntry(raw) {
+    const word = pickStr(raw, WORD_FIELDS);
+    const ja = extractJapaneseMeaning(raw);
     return {
-      word: pickStr(raw, WORD_FIELDS),
-      ja: pickStr(raw, JA_FIELDS),
+      word,
+      ja,
       def: pickStr(raw, DEF_FIELDS),
       mem: pickNum(raw, MEM_FIELDS),
       raw
@@ -117,14 +170,15 @@
       const x = arr[i];
       if (!x || typeof x !== "object") continue;
       if (pickStr(x, WORD_FIELDS)) s += 5;
-      if (pickStr(x, JA_FIELDS)) s += 2;
+      // we score meaning using extractor (more robust)
+      if (extractJapaneseMeaning(x)) s += 2;
       if (pickStr(x, DEF_FIELDS)) s += 1;
     }
-    s += Math.min(arr.length, 600) / 60;
+    s += Math.min(arr.length, 800) / 80;
     return s;
   }
 
-  const CAP_KEY = "vp_capture_best_v3";
+  const CAP_KEY = "vp_capture_best_v4";
 
   function getCap() {
     const obj = safeParse(localStorage.getItem(CAP_KEY) || "{}");
@@ -156,14 +210,12 @@
   }
 
   function initialScan() {
-    // localStorage
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
       if (!k) continue;
       const v = localStorage.getItem(k);
       if (typeof v === "string" && v.length > 10) considerCandidate("localStorage", k, v);
     }
-    // sessionStorage
     try {
       for (let i = 0; i < sessionStorage.length; i++) {
         const k = sessionStorage.key(i);
@@ -203,8 +255,8 @@
     else if (cap.source === "sessionStorage") {
       try { raw = sessionStorage.getItem(cap.key); } catch { raw = null; }
     }
-
     if (typeof raw !== "string") return [];
+
     const parsed = safeParse(raw);
     const arr = parsed ? extractArray(parsed) : null;
     if (!Array.isArray(arr)) return [];
@@ -215,8 +267,8 @@
   // =========================
   // CEFR auto-estimation (Datamuse) + cache
   // =========================
-  const CEFR_CACHE_KEY = "vp_cefr_cache_v3";
-  const CEFR_TTL = 1000 * 60 * 60 * 24 * 30; // 30 days
+  const CEFR_CACHE_KEY = "vp_cefr_cache_v4";
+  const CEFR_TTL = 1000 * 60 * 60 * 24 * 30;
 
   function getCefrCache() {
     const obj = safeParse(localStorage.getItem(CEFR_CACHE_KEY) || "{}");
@@ -228,7 +280,6 @@
   }
 
   function freqToCEFR(f) {
-    // occurrences per million
     if (f >= 120) return "A1";
     if (f >= 60) return "A2";
     if (f >= 20) return "B1";
@@ -273,7 +324,7 @@
   }
 
   // =========================
-  // UI: Fixed bar + Fullscreen test
+  // UI
   // =========================
   let backdrop, testEl;
 
@@ -283,7 +334,7 @@
     settings: {
       count: 20,
       cefrMin: "A2",
-      target: "all",    // all | low | unrated
+      target: "all",  // all | low | unrated
       shuffle: true
     }
   };
@@ -312,8 +363,6 @@
 
         <div class="vp-test-mid" id="vpMid"></div>
 
-        <!-- NOTE: Bottom bars are rendered into vpBottom as HTML,
-             and CSS can position them fixed (your addon-ui.css does that). -->
         <div id="vpBottom"></div>
       </div>
     `;
@@ -323,7 +372,6 @@
 
     testEl.querySelector("#vpExit").addEventListener("click", closeTest);
 
-    // gesture-friendly
     window.addEventListener("keydown", (e) => {
       if (testEl.style.display !== "block") return;
       if (e.key === "Escape") closeTest();
@@ -372,10 +420,10 @@
 
   function renderStart() {
     const s = state.settings;
-
     const sel = (cond) => cond ? "vp-selected" : "";
 
     setTop("0/0", 0, "—");
+
     setMid(`
       <div class="vp-word" style="font-size:22px;">テスト設定</div>
       <div class="vp-note">スマホ用：ここで範囲を決めてから開始。</div>
@@ -418,11 +466,8 @@
       <button class="vp-btn" id="vpStart" style="padding:14px 18px; font-size:15px;">Start</button>
     `);
 
-    setBottom(`
-      <div class="vp-note">Start → 答え表示 → 自己評価。スクロールなし。</div>
-    `);
+    setBottom(`<div class="vp-note">Start → 答え表示 → 自己評価。スクロールなし。</div>`);
 
-    // wiring
     testEl.querySelectorAll("[data-count]").forEach(b => {
       b.onclick = () => { state.settings.count = Number(b.dataset.count); vibrate(); renderStart(); };
     });
@@ -437,47 +482,38 @@
   }
 
   async function startSession() {
-    const entriesAll = loadEntries();
+    const all = loadEntries();
 
-    if (!entriesAll.length) {
+    if (!all.length) {
       setTop("0/0", 0, "—");
       setMid(`
         <div class="vp-word" style="font-size:22px;">単語データが見つからない</div>
         <div class="vp-note">単語を追加してからStartするとテストが回る。</div>
       `);
-      setBottom(`
-        <button class="vp-btn" id="vpRescan">再検出</button>
-      `);
+      setBottom(`<button class="vp-btn" id="vpRescan">再検出</button>`);
       const btn = testEl.querySelector("#vpRescan");
       if (btn) btn.onclick = () => { vibrate(); initialScan(); renderStart(); };
       return;
     }
 
-    // Copy pool
-    let pool = entriesAll.slice();
+    let pool = all.slice();
 
-    // Target filtering (best-effort: uses mem if present)
-    const tgt = state.settings.target;
-    if (tgt === "unrated") pool = pool.filter(e => e.mem == null);
-    if (tgt === "low") pool = pool.filter(e => (e.mem == null) || e.mem <= 2);
+    if (state.settings.target === "unrated") pool = pool.filter(e => e.mem == null);
+    if (state.settings.target === "low") pool = pool.filter(e => (e.mem == null) || e.mem <= 2);
 
-    // Shuffle
     if (state.settings.shuffle) shuffleInPlace(pool);
 
-    // CEFR filter with caching, keep it snappy (prefetch up to 180)
     const minRank = cefrRank(state.settings.cefrMin);
     const filtered = [];
 
-    const limitPrefetch = Math.min(pool.length, 180);
+    const limitPrefetch = Math.min(pool.length, 240);
     for (let i = 0; i < limitPrefetch; i++) {
       const w = pool[i].word;
       const c = await getCEFR(w);
       if (cefrRank(c) >= minRank) filtered.push({ ...pool[i], cefr: c });
-      // early exit if we already have enough
       if (filtered.length >= state.settings.count) break;
     }
 
-    // If filtered is small, fall back to unfiltered (still usable)
     const use = (filtered.length >= 3) ? filtered : pool.map(e => ({ ...e, cefr: "" }));
     const items = use.slice(0, Math.min(state.settings.count, use.length));
 
@@ -506,7 +542,6 @@
 
     const total = sess.items.length;
     const cur = currentItem();
-
     if (!cur) {
       state.stage = "result";
       return renderResult();
@@ -522,7 +557,6 @@
       <div class="vp-note">「答え表示」→ 自己評価。スマホで完結。</div>
     `);
 
-    // Fixed bars (CSS in addon-ui.css positions these)
     setBottom(`
       <div class="vp-test-bottom vp-bar2" id="vpBarTop">
         <button class="vp-btn" id="vpShow">答え表示</button>
@@ -578,7 +612,6 @@
 
     setTop(`${total}/${total}`, done, "—");
 
-    // Basic summary
     const rated = (sess?.logs || []).filter(x => x.rate && x.rate > 0);
     const c1 = rated.filter(x => x.rate === 1).length;
     const c2 = rated.filter(x => x.rate === 2).length;
@@ -600,7 +633,7 @@
     `);
 
     setBottom(`
-      <div class="vp-test-bottom vp-bar2" style="bottom: 84px;">
+      <div class="vp-test-bottom vp-bar2" style="bottom: 80px;">
         <button class="vp-btn" id="vpRestart">再スタート</button>
         <button class="vp-btn" id="vpClose">閉じる</button>
       </div>
@@ -608,7 +641,7 @@
         <button class="vp-btn" id="vpRescan2">再検出</button>
         <button class="vp-btn" id="vpLight">Light</button>
         <button class="vp-btn" id="vpDark">Dark</button>
-        <button class="vp-btn" id="vpTop">先頭へ</button>
+        <button class="vp-btn" id="vpStartTop">設定へ</button>
       </div>
     `);
 
@@ -627,12 +660,12 @@
     const dark = testEl.querySelector("#vpDark");
     if (dark) dark.onclick = () => { applyTheme("dark"); vibrate(); };
 
-    const top = testEl.querySelector("#vpTop");
+    const top = testEl.querySelector("#vpStartTop");
     if (top) top.onclick = () => { vibrate(); state.stage = "start"; renderStart(); };
   }
 
   // =========================
-  // Fixed buttons (top-right)
+  // Fixed buttons
   // =========================
   function mountFixedBar() {
     const bar = document.createElement("div");
