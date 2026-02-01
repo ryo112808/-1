@@ -150,3 +150,83 @@ select{
   gap:10px;
   z-index:100000;
 }
+/* ===== FORCE TEST OVERLAY (fix: appended at bottom) ===== */
+
+/* テスト背景（暗幕） */
+.vp-test-backdrop{
+  position: fixed !important;
+  inset: 0 !important;
+  background: rgba(0,0,0,.45) !important;
+  z-index: 99998 !important;
+  display: none;
+}
+
+/* テスト本体：必ず画面全面のオーバーレイとして表示 */
+.vp-test{
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 99999 !important;
+
+  /* 中央配置 */
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  padding: 14px !important;
+  background: transparent !important;
+
+  /* 通常ページのレイアウトに巻き込まれない */
+  margin: 0 !important;
+  transform: none !important;
+}
+
+/* テストカード */
+.vp-test-shell{
+  width: min(720px, 100%) !important;
+  height: min(840px, calc(100vh - 28px)) !important;
+  border-radius: 22px !important;
+  overflow: hidden !important;
+
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+/* 上部バー */
+.vp-test-top{
+  flex: 0 0 auto !important;
+}
+
+/* 中央コンテンツ：スクロール無し + 下ボタン分の余白 */
+.vp-test-mid{
+  flex: 1 1 auto !important;
+  overflow: hidden !important;
+  padding: 18px 14px 140px !important; /* ボタン2段分 */
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* 下のバー：絶対に画面下に固定 */
+.vp-test-bottom{
+  position: fixed !important;
+  left: max(10px, env(safe-area-inset-left)) !important;
+  right: max(10px, env(safe-area-inset-right)) !important;
+  bottom: max(14px, env(safe-area-inset-bottom)) !important;
+  z-index: 100000 !important;
+
+  display: grid !important;
+  grid-template-columns: repeat(4, 1fr) !important;
+  gap: 10px !important;
+}
+
+.vp-test-bottom.vp-bar2{
+  grid-template-columns: 1fr 1fr !important;
+  bottom: calc(max(14px, env(safe-area-inset-bottom)) + 70px) !important;
+}
+
+/* ページ側がスクロールしないように（テスト中） */
+.vp-noscreen-scroll{
+  overflow: hidden !important;
+  height: 100% !important;
+}
