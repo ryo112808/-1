@@ -2,65 +2,144 @@
 <html lang="ja" data-theme="light">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>単語plus</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <header class="topbar" id="topbar">
+    <div class="brand">
+      <div class="appname">単語plus</div>
+      <div class="tagline">貼る → 自動で和訳 → 自分だけの単語帳</div>
+    </div>
+    <div class="top-actions">
+      <button class="chip" id="themeBtn" type="button">ライト</button>
+      <button class="chip" id="helpBtn" type="button">？</button>
+    </div>
+  </header>
 
-<header class="top">
-  <div class="title">単語plus</div>
-  <div class="copy">貼るだけで、自分だけの単語帳ができる</div>
-  <button id="themeBtn" class="ghost">ライト</button>
-</header>
+  <main class="container" id="main">
+    <section class="card">
+      <div class="card-title">単語を貼る</div>
+      <div class="muted">改行・スペース区切りOK。重複はまとめる。</div>
+      <div class="sp8"></div>
+      <textarea id="bulkInput" class="textarea" placeholder="例) claim nevertheless abundant"></textarea>
+      <div class="sp8"></div>
+      <div class="row">
+        <button class="btn primary" id="addBtn" type="button">追加する</button>
+        <button class="btn" id="exportBtn" type="button">バックアップ</button>
+      </div>
+      <div class="sp6"></div>
+      <div class="row">
+        <button class="btn" id="importBtn" type="button">復元</button>
+        <button class="btn danger" id="openTrashBtn" type="button">ゴミ箱</button>
+      </div>
+    </section>
 
-<main id="app">
+    <section class="card">
+      <div class="row">
+        <input id="searchInput" class="input" placeholder="検索（単語 / 和訳）" />
+        <button class="btn" id="refreshMissingBtn" type="button">未準備を再取得</button>
+      </div>
+      <div class="sp10"></div>
 
-<section id="add">
-  <textarea id="bulk" placeholder="覚えたい英単語を貼る（改行・スペースOK）"></textarea>
-  <button id="addBtn" class="primary">単語を追加</button>
-</section>
+      <div class="row">
+        <button class="btn primary" id="flashStartBtn" type="button">フラッシュ</button>
+        <button class="btn" id="pickCountBtn" type="button">出題数：<span id="countLabel">20</span></button>
+        <button class="btn" id="shuffleBtn" type="button">シャッフル：<span id="shuffleLabel">ON</span></button>
+      </div>
 
-<section id="list">
-  <div class="row">
-    <input id="search" placeholder="検索">
-    <button id="flashBtn" class="secondary">フラッシュ</button>
-  </div>
-  <ul id="words"></ul>
-</section>
+      <div class="sp10"></div>
+      <div class="muted" id="statusLine">読み込み中…</div>
 
-</main>
+      <div class="sp10"></div>
+      <ul id="list" class="list"></ul>
+    </section>
+  </main>
 
-<!-- フォーカスモード -->
-<div id="focus" hidden>
-  <div class="focusTop">
-    <button id="exitFocus" class="ghost">戻る</button>
-    <div id="progress"></div>
-  </div>
+  <!-- Focus Flash (no page navigation, no full-screen) -->
+  <section id="focus" class="focus" hidden>
+    <div class="focus-top">
+      <button class="chip" id="exitFocusBtn" type="button">閉じる</button>
+      <div class="focus-progress" id="focusProgress">1 / 20</div>
+    </div>
 
-  <div class="card">
-    <div id="fWord" class="fWord"></div>
-    <button id="showAns" class="secondary">答え</button>
-    <div id="fJa" hidden></div>
-  </div>
+    <div class="focus-card">
+      <div class="focus-word" id="focusWord">word</div>
+      <div class="focus-phonetic" id="focusPhonetic"></div>
 
-  <div class="rates">
-    <button data-r="0">未習得</button>
-    <button data-r="1">不確か</button>
-    <button data-r="2">習得</button>
-    <button data-r="3">定着</button>
-  </div>
-</div>
+      <div class="sp10"></div>
 
-<!-- チュートリアル -->
-<div id="tuto" hidden>
-  <div class="slide">単語plusは<br>自分だけの単語帳を作るアプリ</div>
-  <div class="slide">単語を貼るだけで<br>意味が自動でつく</div>
-  <div class="slide">たまったら<br>フラッシュで確認</div>
-  <div class="slide">削除しても安心<br>いつでも戻せる</div>
-  <button id="skip">はじめる</button>
-</div>
+      <button class="btn primary" id="showAnswerBtn" type="button">意味を見る</button>
 
-<script src="app.js"></script>
+      <div class="focus-answer" id="focusAnswer" hidden>
+        <div class="focus-ja" id="focusJa"></div>
+        <div class="focus-en muted" id="focusEn"></div>
+      </div>
+
+      <div class="sp12"></div>
+
+      <div class="rate-grid" id="rateGrid">
+        <button class="rate" data-rate="0" type="button">未習得</button>
+        <button class="rate" data-rate="1" type="button">不確か</button>
+        <button class="rate" data-rate="2" type="button">習得</button>
+        <button class="rate" data-rate="3" type="button">定着</button>
+      </div>
+      <div class="muted tiny">※ 暗記度は自己判断</div>
+    </div>
+
+    <div class="focus-done" id="focusDone" hidden>
+      <div class="done-title">完了</div>
+      <div class="muted" id="doneLine">20語チェック</div>
+      <div class="sp10"></div>
+      <div class="row">
+        <button class="btn primary" id="doneAgainBtn" type="button">もう一回</button>
+        <button class="btn" id="doneCloseBtn" type="button">戻る</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tutorial (operation guide only) -->
+  <section id="tutorial" class="tutorial" hidden aria-modal="true" role="dialog">
+    <div class="tuto-top">
+      <div class="tuto-title">使い方</div>
+      <button class="chip" id="skipTutoBtn" type="button">スキップ</button>
+    </div>
+
+    <div class="tuto-viewport" id="tutoViewport">
+      <div class="tuto-track" id="tutoTrack">
+        <div class="tuto-slide">
+          <div class="tuto-h">① 単語を貼る</div>
+          <div class="tuto-p">入力欄に貼って <b>「追加する」</b> を押す</div>
+        </div>
+        <div class="tuto-slide">
+          <div class="tuto-h">② 一覧を見る</div>
+          <div class="tuto-p">単語と和訳がリストに並ぶ</div>
+        </div>
+        <div class="tuto-slide">
+          <div class="tuto-h">③ フラッシュ</div>
+          <div class="tuto-p"><b>「フラッシュ」</b> → <b>「意味を見る」</b> の順に押す</div>
+        </div>
+        <div class="tuto-slide">
+          <div class="tuto-h">④ 覚えたら評価</div>
+          <div class="tuto-p">暗記度ボタンを押す（最後まで行くと完了）</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tuto-dots" id="tutoDots" aria-label="slides">
+      <span class="dot on"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+    </div>
+
+    <div class="row tuto-actions">
+      <button class="btn" id="prevTutoBtn" type="button">戻る</button>
+      <button class="btn primary" id="nextTutoBtn" type="button">次へ</button>
+    </div>
+  </section>
+
+  <!-- Toast -->
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="app.js"></script>
 </body>
 </html>
