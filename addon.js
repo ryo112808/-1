@@ -700,3 +700,35 @@
   }
 
 })();
+// ===== HARD EXIT FIX =====
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+
+  // 表示テキスト or aria-label で Exit を判定
+  if (
+    btn.textContent.trim() === "Exit" ||
+    btn.getAttribute("aria-label") === "Exit"
+  ) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // テスト状態を完全リセット
+    document.body.classList.remove("test-open");
+
+    // 内部ステートがあれば初期化
+    if (window.state) {
+      window.state.stage = "start";
+    }
+
+    // テストUIを強制的に隠す
+    document.querySelectorAll(".vp-test").forEach(el => {
+      el.style.display = "none";
+    });
+
+    // 念のためスクロール復帰
+    document.body.style.overflow = "";
+
+    console.log("[Exit] test closed");
+  }
+}, true);
