@@ -1,5 +1,10 @@
-const CACHE = "tango-plus-cache-v1";
-const ASSETS = ["./", "./index.html", "./manifest.json"];
+const CACHE = "vocabplus-cache-v2";
+const ASSETS = [
+  "./",
+  "./index.html",
+  "./manifest.json",
+  "./sw.js"
+];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(
@@ -8,26 +13,16 @@ self.addEventListener("install", (e) => {
 });
 
 self.addEventListener("activate", (e) => {
-  e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.map(k => (k === CACHE ? null : caches.delete(k))))
-    ).then(() => self.clients.claim())
-  );
+  e.waitUntil(self.clients.claim());
 });
 
 self.addEventListener("fetch", (e) => {
   const req = e.request;
-
-  // APIはネット優先、失敗時はそのまま
-  if (req.url.includes("dictionaryapi.dev") || req.url.includes("datamuse.com") || req.url.includes("mymemory.translated.net")) {
-    return;
-  }
-
   e.respondWith(
-    caches.match(req).then((cached) => cached || fetch(req).then((res) => {
+    caches.match(req).then((hit) => hit || fetch(req).then((res) => {
       const copy = res.clone();
-      caches.open(CACHE).then((c) => c.put(req, copy));
+      caches.open(CACHE).then((c) => c.put(req, copy)).catch(()=>{});
       return res;
-    }))
+    }).catch(() => caches.match("./index.html")))
   );
 });
