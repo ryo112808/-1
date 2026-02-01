@@ -1,36 +1,58 @@
-const CACHE = "tango-plus-v2";
-const ASSETS = [
-  "./",
-  "./index.html",
-  "./styles.css",
-  "./app.js",
-  "./manifest.json"
-];
+const CACHE = "tango_plus_v2_cache_1";
 
-self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(CACHE).then((c)=>c.addAll(ASSETS)));
+self.addEventListener("install", (event) => {
   self.skipWaiting();
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE);
+    // 最低限だけプリキャッシュ（壊れた固定を避けるため少なめ）
+    await cache.addAll(["./", "./index.html", "./styles.css", "./app.js"]);
+  })());
 });
 
-self.addEventListener("activate", (e) => {
-  e.waitUntil(
-    caches.keys().then(keys => Promise.all(keys.map(k => k===CACHE ? null : caches.delete(k))))
-  );
-  self.clients.claim();
+self.addEventListener("activate", (event) => {
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.map(k => (k === CACHE ? null : caches.delete(k))));
+    await self.clients.claim();
+  })());
 });
 
-self.addEventListener("fetch", (e) => {
-  const req = e.request;
+// 更新優先：HTML/JS/CSSは常にネット優先、失敗した時だけキャッシュ
+self.addEventListener("fetch", (event) => {
+  const req = event.request;
   const url = new URL(req.url);
 
-  // 外部APIはキャッシュしない
+  // GitHub Pages内だけ
   if (url.origin !== location.origin) return;
 
-  e.respondWith(
-    caches.match(req).then(cached => cached || fetch(req).then(res => {
-      const copy = res.clone();
-      caches.open(CACHE).then(c=>c.put(req, copy));
-      return res;
-    }).catch(()=>cached))
-  );
+  const isCore =
+    url.pathname.endsWith("/") ||
+    url.pathname.endsWith("/index.html") ||
+    url.pathname.endsWith("/app.js") ||
+    url.pathname.endsWith("/styles.css");
+
+  if (isCore) {
+    event.respondWith((async () => {
+      try {
+        const fresh = await fetch(req, { cache: "no-store" });
+        const cache = await caches.open(CACHE);
+        cache.put(req, fresh.clone());
+        return fresh;
+      } catch {
+        const cached = await caches.match(req);
+        return cached || new Response("offline", { status: 200 });
+      }
+    })());
+    return;
+  }
+
+  // 画像などはキャッシュ優先でOK
+  event.respondWith((async () => {
+    const cached = await caches.match(req);
+    if (cached) return cached;
+    const fresh = await fetch(req);
+    const cache = await caches.open(CACHE);
+    cache.put(req, fresh.clone());
+    return fresh;
+  })());
 });
