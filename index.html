@@ -1,344 +1,66 @@
 <!doctype html>
-<html lang="ja">
+<html lang="ja" data-theme="light">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <meta name="theme-color" content="#0f1115" />
-  <link rel="manifest" href="manifest.json" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>単語plus</title>
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css">
 </head>
-
 <body>
-  <div class="topbar">
-    <div class="brand">
-      <div>
-        <h1>単語plus</h1>
-        <div class="sub">貼る→和訳取得→フラッシュ。削除はゴミ箱（復元OK）。</div>
-      </div>
-    </div>
 
-    <div class="tabs">
-      <button class="tabBtn active" data-tab="list">リスト</button>
-      <button class="tabBtn" data-tab="paste">貼る</button>
-      <button class="tabBtn" data-tab="flash">フラッシュ</button>
-      <button class="tabBtn" data-tab="manage">管理</button>
-    </div>
+<header class="top">
+  <div class="title">単語plus</div>
+  <div class="copy">貼るだけで、自分だけの単語帳ができる</div>
+  <button id="themeBtn" class="ghost">ライト</button>
+</header>
 
-    <div class="searchBox">
-      <input id="search" placeholder="検索：単語 / 和訳 / メモ / #タグ（複数OK）" />
-      <button class="secondary" id="clearSearch">クリア</button>
-    </div>
+<main id="app">
 
-    <div class="pillRow">
-      <span class="pill"><b>待機</b> <span id="qWait">0</span></span>
-      <span class="pill"><b>進行</b> <span id="qRun">0</span></span>
-      <span class="pill"><b>成功</b> <span id="qOk">0</span></span>
-      <span class="pill"><b>失敗</b> <span id="qFail">0</span></span>
-      <span class="pill"><b>未取得</b> 和訳 <span id="mJa">0</span> / 定義 <span id="mDef">0</span> / 類語 <span id="mSyn">0</span> / 例文 <span id="mEx">0</span></span>
-    </div>
+<section id="add">
+  <textarea id="bulk" placeholder="覚えたい英単語を貼る（改行・スペースOK）"></textarea>
+  <button id="addBtn" class="primary">単語を追加</button>
+</section>
+
+<section id="list">
+  <div class="row">
+    <input id="search" placeholder="検索">
+    <button id="flashBtn" class="secondary">フラッシュ</button>
+  </div>
+  <ul id="words"></ul>
+</section>
+
+</main>
+
+<!-- フォーカスモード -->
+<div id="focus" hidden>
+  <div class="focusTop">
+    <button id="exitFocus" class="ghost">戻る</button>
+    <div id="progress"></div>
   </div>
 
-  <div class="wrap">
-
-    <!-- LIST -->
-    <section id="sec_list" class="section active">
-      <div class="card">
-        <div class="filters">
-          <select id="sort">
-            <option value="new">並び：新しい順</option>
-            <option value="old">並び：古い順</option>
-            <option value="due">並び：期限が近い順</option>
-            <option value="az">並び：A→Z</option>
-          </select>
-          <select id="levelFilter">
-            <option value="all">暗記度：全部</option>
-            <option value="0">暗記度：0</option>
-            <option value="1">暗記度：1</option>
-            <option value="2">暗記度：2</option>
-            <option value="3">暗記度：3</option>
-            <option value="4">暗記度：4</option>
-          </select>
-          <select id="scope">
-            <option value="all">対象：全部</option>
-            <option value="due">対象：期限のみ</option>
-          </select>
-          <select id="pageSize">
-            <option value="30">表示：30件</option>
-            <option value="60">表示：60件</option>
-            <option value="120">表示：120件</option>
-          </select>
-          <button class="secondary" id="retryMissing">未取得を再取得</button>
-          <button class="secondary" id="retryFailed">失敗のみ再取得</button>
-        </div>
-        <div class="small" style="margin-top:10px">
-          フラッシュは和訳がある単語だけ出題。英語定義は詳細に隔離。
-        </div>
-      </div>
-
-      <div class="listHead">
-        <div class="title">単語</div>
-        <div class="small"><span id="countNow">0</span> 件</div>
-      </div>
-
-      <div id="list"></div>
-      <div style="height:10px"></div>
-      <button class="secondary" id="moreBtn" style="width:100%;">続きを表示</button>
-    </section>
-
-    <!-- PASTE -->
-    <section id="sec_paste" class="section">
-      <div class="card">
-        <div style="font-weight:950;font-size:16px">まとめて貼る</div>
-        <div class="small">改行 / カンマ / スラッシュ / スペース区切りOK。正規化して重複統合。</div>
-        <div style="height:10px"></div>
-        <textarea id="pasteArea" placeholder="例：
-claim
-nevertheless, abundant / constitute
-..."></textarea>
-        <div style="height:10px"></div>
-        <div class="row">
-          <button id="bulkAdd">まとめ追加（保存→取得）</button>
-          <button class="secondary" id="pasteDemo">例を入れる</button>
-        </div>
-
-        <div style="height:12px"></div>
-        <div class="two">
-          <div class="card innerCard">
-            <div style="font-weight:950">1語だけ追加</div>
-            <div class="small">入力→追加（重複は統合）</div>
-            <div style="height:10px"></div>
-            <div class="row">
-              <input id="oneWord" placeholder="例: claim" autocomplete="off" />
-              <button id="oneAdd">追加</button>
-            </div>
-          </div>
-          <div class="card innerCard">
-            <div style="font-weight:950">取得の仕様</div>
-            <div class="small">
-              定義/類語/例文：DictionaryAPI（無料）<br>
-              和訳：MyMemory翻訳（無料）<br>
-              混雑や電波で揺れる前提 → 失敗理由と再取得あり
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- FLASH -->
-    <section id="sec_flash" class="section">
-      <div class="card">
-        <div class="filters">
-          <select id="flashScope">
-            <option value="due">出題：期限のみ</option>
-            <option value="all">出題：全部</option>
-          </select>
-
-          <select id="flashLevel">
-            <option value="all">暗記度：全部</option>
-            <option value="0">暗記度：0</option>
-            <option value="0-1">暗記度：0-1</option>
-            <option value="0-2">暗記度：0-2</option>
-          </select>
-
-          <select id="flashOrder">
-            <option value="shuffle">順番：シャッフル</option>
-            <option value="due">順番：期限順</option>
-            <option value="new">順番：新しい順</option>
-          </select>
-
-          <select id="flashCount">
-            <option value="10">出題数：10</option>
-            <option value="20" selected>出題数：20</option>
-            <option value="30">出題数：30</option>
-            <option value="50">出題数：50</option>
-            <option value="100">出題数：100</option>
-          </select>
-
-          <button class="secondary" id="openRules">ルール</button>
-        </div>
-
-        <div class="small" style="margin-top:10px">
-          単語だけ表示 →「答え」or評価で和訳が出る（英語定義は詳細）。キー：Space=答え、1/2/3/4=評価
-        </div>
-      </div>
-
-      <div style="height:12px"></div>
-
-      <div class="card" id="flashCard">
-        <div class="wordLine">
-          <div>
-            <div class="word" id="fWord">—</div>
-            <div class="small" id="fMeta">—</div>
-          </div>
-          <span class="chip" id="fLvl"><span class="dot"></span><span>暗記度 0</span></span>
-        </div>
-
-        <div class="fold">
-          <details id="fDetails">
-            <summary>答え（和訳）</summary>
-            <div id="fBody" style="margin-top:10px"></div>
-
-            <div style="height:10px"></div>
-            <details id="fMore">
-              <summary class="small">詳細（英語定義 / 類語 / 例文）</summary>
-              <div id="fMoreBody" style="margin-top:10px"></div>
-            </details>
-          </details>
-        </div>
-
-        <div style="height:12px"></div>
-
-        <div class="two">
-          <button class="secondary" id="btnAgain">1 未習得</button>
-          <button class="secondary" id="btnHard">2 不確か</button>
-          <button class="secondary" id="btnGood">3 習得</button>
-          <button id="btnEasy">4 定着</button>
-        </div>
-
-        <div style="height:10px"></div>
-        <div class="row">
-          <button class="ghost" id="btnReveal">Space 答え</button>
-          <button class="secondary" id="btnNext">次へ</button>
-        </div>
-      </div>
-
-      <div style="height:12px"></div>
-
-      <div class="card" id="flashEnd" style="display:none;">
-        <div style="font-weight:950;font-size:16px">終了</div>
-        <div class="small" style="margin-top:6px">出題数ぶん完了。</div>
-
-        <div style="height:10px"></div>
-        <div class="kpi">
-          <div class="box"><div class="n" id="endTotal">0</div><div class="t">出題数</div></div>
-          <div class="box"><div class="n" id="endRated">0</div><div class="t">評価済</div></div>
-        </div>
-
-        <div style="height:12px"></div>
-        <div class="row">
-          <button id="endRestart">もう一回</button>
-          <button class="secondary" id="endBack">設定に戻る</button>
-        </div>
-      </div>
-
-      <div style="height:12px"></div>
-      <div class="card">
-        <div class="small">
-          残り：<b id="fRemain">0</b> / 出題対象：<b id="fTotal">0</b>
-        </div>
-      </div>
-    </section>
-
-    <!-- MANAGE -->
-    <section id="sec_manage" class="section">
-      <div class="card">
-        <div class="row">
-          <button class="secondary" id="exportBtn">エクスポート（コピー）</button>
-          <button class="secondary" id="importBtn">インポート</button>
-          <button class="secondary" id="backupBtn">バックアップ復元</button>
-          <button class="secondary" id="openTutorial">チュートリアル</button>
-        </div>
-
-        <div style="height:10px"></div>
-        <div class="kpi">
-          <div class="box"><div class="n" id="kAll">0</div><div class="t">全単語（現役）</div></div>
-          <div class="box"><div class="n" id="kTrash">0</div><div class="t">ゴミ箱</div></div>
-          <div class="box"><div class="n" id="kDue">0</div><div class="t">期限あり</div></div>
-        </div>
-      </div>
-
-      <div style="height:12px"></div>
-
-      <div class="card">
-        <div style="font-weight:950">ゴミ箱</div>
-        <div class="small">削除はここに入る。復元できる。</div>
-        <div style="height:10px"></div>
-        <div class="row">
-          <button class="secondary" id="restoreAll">全部復元</button>
-          <button class="danger" id="emptyTrashHold">完全削除（長押し2秒）</button>
-        </div>
-        <div class="holdHint" id="holdHint" style="margin-top:8px;display:none;">2秒長押し → 確認入力 → 完全削除</div>
-        <div style="height:10px"></div>
-        <div id="trashList"></div>
-      </div>
-
-      <div style="height:12px"></div>
-
-      <div class="card dangerZone">
-        <div style="font-weight:950">危険操作</div>
-        <div class="small">全消去はゴミ箱へ（Undoあり）。</div>
-        <div style="height:10px"></div>
-        <button class="danger" id="softClear">全消去（ゴミ箱へ）</button>
-      </div>
-    </section>
+  <div class="card">
+    <div id="fWord" class="fWord"></div>
+    <button id="showAns" class="secondary">答え</button>
+    <div id="fJa" hidden></div>
   </div>
 
-  <!-- TOAST -->
-  <div class="toast" id="toast">
-    <div class="top">
-      <div class="msg" id="toastMsg">—</div>
-      <div class="actions">
-        <button class="secondary" id="toastUndo">取り消し</button>
-        <button class="ghost" id="toastClose">閉じる</button>
-      </div>
-    </div>
-    <div class="small" id="toastSub" style="margin-top:6px"></div>
+  <div class="rates">
+    <button data-r="0">未習得</button>
+    <button data-r="1">不確か</button>
+    <button data-r="2">習得</button>
+    <button data-r="3">定着</button>
   </div>
+</div>
 
-  <!-- RULE SHEET -->
-  <div class="ruleSheet" id="ruleSheet">
-    <div class="row" style="align-items:flex-start">
-      <div style="flex:1">
-        <div style="font-weight:950;font-size:16px">学習ルール</div>
-        <div class="small">評価に応じて暗記度と次回期限が動く。</div>
-      </div>
-      <button class="secondary" id="closeRules" style="flex:0 0 auto">閉じる</button>
-    </div>
+<!-- チュートリアル -->
+<div id="tuto" hidden>
+  <div class="slide">単語plusは<br>自分だけの単語帳を作るアプリ</div>
+  <div class="slide">単語を貼るだけで<br>意味が自動でつく</div>
+  <div class="slide">たまったら<br>フラッシュで確認</div>
+  <div class="slide">削除しても安心<br>いつでも戻せる</div>
+  <button id="skip">はじめる</button>
+</div>
 
-    <table>
-      <thead>
-        <tr><th>評価</th><th>暗記度</th><th>次回</th></tr>
-      </thead>
-      <tbody>
-        <tr><td>未習得</td><td>そのまま（最低0）</td><td>+10分</td></tr>
-        <tr><td>不確か</td><td>+1（最大4）</td><td>+1日</td></tr>
-        <tr><td>習得</td><td>+1（最大4）</td><td>+3日</td></tr>
-        <tr><td>定着</td><td>+1（最大4）</td><td>+7日（暗記度4なら +14日）</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <!-- TUTORIAL -->
-  <div id="tutorial" class="ruleSheet" style="z-index:200;">
-    <div class="row" style="align-items:flex-start">
-      <div style="flex:1">
-        <div style="font-weight:950;font-size:16px">最初に1分だけ</div>
-        <div class="small">スキップOK。あとから「管理」でも開ける。</div>
-      </div>
-      <button class="secondary" id="tutSkip" style="flex:0 0 auto">スキップ</button>
-    </div>
-
-    <div style="height:10px"></div>
-
-    <div class="card innerCard">
-      <div id="tutPageTitle" style="font-weight:950;font-size:15px">① 貼る→取得</div>
-      <div id="tutPageBody" class="small" style="margin-top:8px;line-height:1.7">
-        「貼る」に単語をまとめて貼る。端末に保存され、裏で和訳を取る。
-      </div>
-    </div>
-
-    <div style="height:10px"></div>
-    <div class="row">
-      <button class="secondary" id="tutPrev">戻る</button>
-      <button id="tutNext">次へ</button>
-    </div>
-
-    <div class="small" style="margin-top:10px">
-      和訳がある単語だけがフラッシュに出る（和訳必須）。
-    </div>
-  </div>
-
-  <script type="module" src="app.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
