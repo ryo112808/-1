@@ -1,9 +1,8 @@
 {
   "name": "単語plus",
   "short_name": "単語plus",
-  "start_url": "./?pwa=1",
+  "start_url": "./",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#ffffff",
-  "icons": []
+  "background_color": "#0f1115",
+  "theme_color": "#0f1115"
 }
