@@ -230,3 +230,64 @@ select{
   overflow: hidden !important;
   height: 100% !important;
 }
+/* ===== EMBED MODE: test stays in page, full width, no clipping ===== */
+
+*{ box-sizing: border-box; }
+
+/* テストをページ内要素として扱う（固定/中央寄せを解除） */
+.vp-test{
+  position: relative !important;
+  inset: auto !important;
+  display: block !important;
+
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 10px 0 0 !important;
+
+  padding: 0 !important;
+  background: transparent !important;
+  z-index: auto !important;
+}
+
+/* 背景暗幕はページ内表示では要らない（見切れ原因になることがある） */
+.vp-test-backdrop{
+  display: none !important;
+}
+
+/* 中のカードを「画面幅にぴったり」合わせる */
+.vp-test-shell{
+  width: 100% !important;
+  max-width: 100% !important;
+
+  /* スマホで見切れやすい角丸+overflowを整える */
+  border-radius: 18px !important;
+  overflow: hidden !important;
+
+  /* 上の固定バー（Light/Test）が重なるならここで逃がす */
+  margin-top: 10px !important;
+}
+
+/* 中身が横に溢れて見切れるのを防ぐ */
+.vp-test-top,
+.vp-test-mid{
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+}
+
+/* スマホだと横余白が効きすぎるので、内部paddingだけで整える */
+.vp-test-mid{
+  padding: 18px 14px 18px !important;
+}
+
+/* ボタン群が横に飛び出るのを抑える */
+.vp-test-mid button,
+.vp-test-top button{
+  max-width: 100% !important;
+}
+
+/* 右上の固定ボタンがテストの上に被る場合：少し上に余白 */
+.vp-fixedbar{
+  top: 10px !important;
+  right: 10px !important;
+}
