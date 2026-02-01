@@ -1,4 +1,4 @@
-/* 単語plus / v6 */
+/* 単語plus / v7 (tutorial tap fix) */
 const STORE_KEY = "tango_plus_v6";
 const TRASH_KEY = "tango_plus_trash_v6";
 const THEME_KEY = "tango_plus_theme_v6";
@@ -36,7 +36,6 @@ function splitWords(text){
   const t = (text || "").replace(/\r/g,"\n");
   const parts = t.split(/[\n,\/]+/g).flatMap(x => x.split(/\s+/g));
   const cleaned = parts.map(x => normalizeWord(x)).filter(Boolean);
-  // 英字っぽいものだけ
   return cleaned.filter(w => /^[a-z\-]+$/i.test(w));
 }
 
@@ -53,40 +52,28 @@ function escapeHtml(s){
   }[m]));
 }
 
-function setStatus(text){
-  const el = $("#statusLine");
-  if (el) el.textContent = text || "";
-}
-
 function updateThemeBtn(){
   const btn = $("#themeBtn");
   if (!btn) return;
   const t = document.documentElement.dataset.theme || "auto";
   btn.textContent = (t === "dark") ? "🌙" : (t === "light") ? "☀️" : "🌗";
 }
-
 function applyTheme(theme){
   document.documentElement.dataset.theme = theme;
   save(THEME_KEY, theme);
   updateThemeBtn();
 }
-
 function initTheme(){
   const stored = load(THEME_KEY, "auto");
   applyTheme(stored);
 }
-
 function cycleTheme(){
   const cur = document.documentElement.dataset.theme || "auto";
   const next = (cur === "auto") ? "light" : (cur === "light") ? "dark" : "auto";
   applyTheme(next);
 }
 
-/* -----------------------------
-  取得（辞書 + 翻訳）
--------------------------------- */
-
-// dictionaryapi.dev（英語定義・類語・例文）
+/* --- 取得 --- */
 async function fetchDictionary(word){
   const url = "https://api.dictionaryapi.dev/api/v2/entries/en/" + encodeURIComponent(word);
   const res = await fetch(url, { cache: "no-store" });
@@ -117,9 +104,7 @@ async function fetchDictionary(word){
   return { phonetic, defs, examples, synonyms };
 }
 
-// MyMemory（無料・揺れあり）→ 和訳は空欄回避で必ず入れる
 async function fetchJa(word){
-  // できるだけ短文で翻訳が安定しやすい形
   const q = encodeURIComponent(word);
   const url = `https://api.mymemory.translated.net/get?q=${q}&langpair=en|ja`;
   const res = await fetch(url, { cache: "no-store" });
@@ -166,16 +151,14 @@ function ensureItem(word){
     note: "",
     tags: [],
     fetchedAt: 0,
-    pending: true,     // 取得待ち
-    hold: false        // 保留（通信揺れ時）
+    pending: true,
+    hold: false
   };
   items.unshift(it);
   return it;
 }
 
-/* -----------------------------
-  取得キュー（高速・安定）
--------------------------------- */
+/* --- キュー --- */
 let queue = [];
 let running = 0;
 let okCount = 0;
@@ -192,7 +175,6 @@ function updateQueueUI(){
 
 async function processOne(it){
   try{
-    // 既に十分新しければスキップ
     if (it.fetchedAt && (now() - it.fetchedAt) < 1000 * 60 * 60 * 24 * 3) {
       it.pending = false;
       it.hold = false;
@@ -254,16 +236,13 @@ async function pump(){
 
 function enqueueItems(arr){
   const targets = arr.filter(it => it && (it.pending || it.hold || !it.fetchedAt));
-  // 重複投入回避
   for (const it of targets){
     if (!queue.find(x => x.id === it.id)) queue.push(it);
   }
   pump();
 }
 
-/* -----------------------------
-  List render
--------------------------------- */
+/* --- LIST --- */
 function passesFilter(it, q, level){
   if (level !== "all" && String(it.level) !== String(level)) return false;
   if (!q) return true;
@@ -279,7 +258,6 @@ function passesFilter(it, q, level){
     it.phonetic
   ].join(" ").toLowerCase();
 
-  // タグ検索（#～）
   return hay.includes(q);
 }
 
@@ -303,13 +281,8 @@ function renderList(){
 
   if (filtered.length === 0){
     list.innerHTML = `<div class="hint">単語がまだ入っていない。貼るタブでまとめ貼りすると一気に作れる。</div>`;
-    setStatus("");
     return;
   }
-
-  const pendingCount = items.filter(x=>x.pending).length;
-  const hold = items.filter(x=>x.hold).length;
-  setStatus(pendingCount || running || queue.length ? `取得中：${pendingCount} / 保留：${hold}` : "");
 
   list.innerHTML = filtered.map(it => {
     const tags = (it.tags || []).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join("");
@@ -329,25 +302,10 @@ function renderList(){
         </div>
 
         <div class="itemBody">
-          <div class="kv">
-            <div class="k">和訳</div>
-            <div class="v">${ja}</div>
-          </div>
-
-          <div class="kv">
-            <div class="k">意味（英語）</div>
-            <div class="v">${defs}</div>
-          </div>
-
-          <div class="kv">
-            <div class="k">類語</div>
-            <div class="v">${syn}</div>
-          </div>
-
-          <div class="kv">
-            <div class="k">例文</div>
-            <div class="v">${ex}</div>
-          </div>
+          <div class="kv"><div class="k">和訳</div><div class="v">${ja}</div></div>
+          <div class="kv"><div class="k">意味（英語）</div><div class="v">${defs}</div></div>
+          <div class="kv"><div class="k">類語</div><div class="v">${syn}</div></div>
+          <div class="kv"><div class="k">例文</div><div class="v">${ex}</div></div>
 
           <div class="kv">
             <div class="k">メモ（任意）</div>
@@ -355,7 +313,7 @@ function renderList(){
           </div>
 
           <div class="kv">
-            <div class="k">タグ（自動付与＋手動もOK）</div>
+            <div class="k">タグ（自動付与＋手動OK）</div>
             <input class="input tagsIn" data-tags="${it.id}" placeholder="#対比 #因果 など" value="${escapeHtml((it.tags||[]).join(" "))}">
             <div class="tags">${tags}</div>
           </div>
@@ -374,61 +332,43 @@ function renderList(){
     `;
   }).join("");
 
-  // bind: memo
-  $$(".note").forEach(t => {
-    t.addEventListener("change", () => {
-      const id = t.dataset.note;
-      const it = items.find(x=>x.id===id);
-      if (!it) return;
-      it.note = t.value || "";
-      save(STORE_KEY, items);
-    });
-  });
+  $$(".note").forEach(t => t.addEventListener("change", () => {
+    const it = items.find(x=>x.id===t.dataset.note);
+    if (!it) return;
+    it.note = t.value || "";
+    save(STORE_KEY, items);
+  }));
 
-  // bind: tags
-  $$(".tagsIn").forEach(inp => {
-    inp.addEventListener("change", () => {
-      const id = inp.dataset.tags;
-      const it = items.find(x=>x.id===id);
-      if (!it) return;
-      const ts = (inp.value || "").split(/\s+/).map(s=>s.trim()).filter(Boolean);
-      it.tags = Array.from(new Set(ts));
-      save(STORE_KEY, items);
-      renderList();
-    });
-  });
+  $$(".tagsIn").forEach(inp => inp.addEventListener("change", () => {
+    const it = items.find(x=>x.id===inp.dataset.tags);
+    if (!it) return;
+    const ts = (inp.value || "").split(/\s+/).map(s=>s.trim()).filter(Boolean);
+    it.tags = Array.from(new Set(ts));
+    save(STORE_KEY, items);
+    renderList();
+  }));
 
-  // bind: level
-  $$(".lvSel").forEach(sel => {
-    sel.addEventListener("change", () => {
-      const id = sel.dataset.lv;
-      const it = items.find(x=>x.id===id);
-      if (!it) return;
-      it.level = Number(sel.value);
-      save(STORE_KEY, items);
-      renderList();
-    });
-  });
+  $$(".lvSel").forEach(sel => sel.addEventListener("change", () => {
+    const it = items.find(x=>x.id===sel.dataset.lv);
+    if (!it) return;
+    it.level = Number(sel.value);
+    save(STORE_KEY, items);
+    renderList();
+  }));
 
-  // bind: trash
-  $$(".toTrash").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const id = btn.dataset.trash;
-      const it = items.find(x=>x.id===id);
-      if (!it) return;
-      trash.unshift({ ...it, trashedAt: now() });
-      items = items.filter(x=>x.id!==id);
-      save(STORE_KEY, items);
-      save(TRASH_KEY, trash);
-      renderList();
-      alert("ゴミ箱へ移動した（管理→ゴミ箱で復元）");
-    });
-  });
+  $$(".toTrash").forEach(btn => btn.addEventListener("click", () => {
+    const it = items.find(x=>x.id===btn.dataset.trash);
+    if (!it) return;
+    trash.unshift({ ...it, trashedAt: now() });
+    items = items.filter(x=>x.id!==it.id);
+    save(STORE_KEY, items);
+    save(TRASH_KEY, trash);
+    renderList();
+    alert("ゴミ箱へ移動した（管理→ゴミ箱で復元）");
+  }));
 }
 
-/* -----------------------------
-  Tabs
--------------------------------- */
+/* --- Tabs --- */
 function setTab(name){
   const map = { list: "#tab_list", paste:"#tab_paste", flash:"#tab_flash", manage:"#tab_manage" };
   for (const k of Object.keys(map)){
@@ -442,23 +382,15 @@ function setTab(name){
   });
 }
 
-/* -----------------------------
-  Flash (独立 overlay)
--------------------------------- */
+/* --- Flash overlay --- */
 let deck = [];
 let idx = 0;
 let revealed = false;
 let flashTargetCount = 0;
 let result = { "0":0, "1":0, "2":0, "3":0 };
 
-function openFlashOverlay(){
-  const ov = $("#flashOverlay");
-  if (ov) ov.hidden = false;
-}
-function closeFlashOverlay(){
-  const ov = $("#flashOverlay");
-  if (ov) ov.hidden = true;
-}
+function openFlashOverlay(){ $("#flashOverlay") && ($("#flashOverlay").hidden = false); }
+function closeFlashOverlay(){ $("#flashOverlay") && ($("#flashOverlay").hidden = true); }
 
 function buildDeck(level, count, shuffle){
   const pool = (level === "all") ? [...items] : items.filter(x => String(x.level) === String(level));
@@ -479,42 +411,28 @@ function buildDeck(level, count, shuffle){
 
 function updateFlashUI(){
   const it = deck[idx];
-  const prog = $("#flashProgress");
-  const word = $("#flashWord");
-  const pho  = $("#flashPhonetic");
-  const ja   = $("#flashJa");
-  const meta = $("#flashMeta");
-  const box  = $("#answerBox");
-  const row  = $("#rateRow");
-  const hint = $("#flashHint");
-
   if (!it) return;
 
-  if (prog) prog.textContent = `${idx+1} / ${flashTargetCount}`;
-  if (word) word.textContent = it.word;
-  if (pho)  pho.textContent = it.phonetic || "";
+  $("#flashProgress") && ($("#flashProgress").textContent = `${idx+1} / ${flashTargetCount}`);
+  $("#flashWord") && ($("#flashWord").textContent = it.word);
+  $("#flashPhonetic") && ($("#flashPhonetic").textContent = it.phonetic || "");
 
-  // 初期は非表示
-  if (box) box.hidden = !revealed;
-  if (row) row.hidden = !revealed;
+  $("#answerBox") && ($("#answerBox").hidden = !revealed);
+  $("#rateRow") && ($("#rateRow").hidden = !revealed);
 
-  if (ja) ja.textContent = revealed ? (it.ja || "要確認（手入力）") : "";
-  if (hint) hint.textContent = revealed ? "評価で暗記度を更新 → 次へ" : "「答え」で和訳を表示";
-
-  if (meta) meta.textContent = `暗記度：${levelLabel(it.level)}　#タグ：${(it.tags||[]).join(" ")}`;
+  $("#flashJa") && ($("#flashJa").textContent = revealed ? (it.ja || "要確認（手入力）") : "");
+  $("#flashHint") && ($("#flashHint").textContent = revealed ? "評価で暗記度を更新 → 次へ" : "「答え」で和訳を表示");
+  $("#flashMeta") && ($("#flashMeta").textContent = `暗記度：${levelLabel(it.level)}　#タグ：${(it.tags||[]).join(" ")}`);
 }
 
 function showDone(){
-  const done = $("#flashDone");
-  const card = $(".overlay__card");
-  if (done) done.hidden = false;
+  $("#flashDone") && ($("#flashDone").hidden = false);
+  const card = document.querySelector(".overlay__card");
   if (card) card.hidden = true;
 
-  const txt = $("#doneText");
-  if (txt){
-    txt.textContent =
-      `未習得 ${result["0"]} / あやふや ${result["1"]} / 習得 ${result["2"]} / 定着 ${result["3"]}　（合計 ${flashTargetCount}）`;
-  }
+  $("#doneText") && ($("#doneText").textContent =
+    `未習得 ${result["0"]} / あやふや ${result["1"]} / 習得 ${result["2"]} / 定着 ${result["3"]}　（合計 ${flashTargetCount}）`
+  );
 }
 
 function startFlash(){
@@ -536,22 +454,16 @@ function startFlash(){
   result = { "0":0, "1":0, "2":0, "3":0 };
 
   $("#flashDone") && ($("#flashDone").hidden = true);
-  const card = $(".overlay__card");
+  const card = document.querySelector(".overlay__card");
   if (card) card.hidden = false;
 
   openFlashOverlay();
   updateFlashUI();
 }
 
-function reveal(){
-  revealed = true;
-  updateFlashUI();
-}
-
+function reveal(){ revealed = true; updateFlashUI(); }
 function rate(lv){
-  // ここで「評価＝答え表示」も満たす
   if (!revealed) revealed = true;
-
   const it = deck[idx];
   if (it){
     it.level = Number(lv);
@@ -560,28 +472,16 @@ function rate(lv){
   }
   updateFlashUI();
 }
-
 function next(){
-  // 次へ：最後は終了画面へ
   idx++;
   revealed = false;
-  if (idx >= flashTargetCount){
-    showDone();
-    return;
-  }
+  if (idx >= flashTargetCount){ showDone(); return; }
   updateFlashUI();
 }
 
-/* -----------------------------
-  Export/Import + Trash
--------------------------------- */
+/* --- Export/Import + Trash --- */
 function doExport(){
-  const payload = {
-    version: 6,
-    exportedAt: new Date().toISOString(),
-    items,
-    trash
-  };
+  const payload = { version: 6, exportedAt: new Date().toISOString(), items, trash };
   const text = JSON.stringify(payload, null, 2);
   navigator.clipboard.writeText(text).then(()=>{
     alert("エクスポートをコピーした（メモ帳に貼って保存でOK）");
@@ -589,7 +489,6 @@ function doExport(){
     window.prompt("このテキストをコピーして保存:", text);
   });
 }
-
 function doImport(){
   const txt = window.prompt("エクスポートしたJSONを貼ってOK:");
   if (!txt) return;
@@ -597,7 +496,6 @@ function doImport(){
     const obj = JSON.parse(txt);
     const arr = obj?.items;
     if (!Array.isArray(arr)) throw new Error();
-    // 軽い正規化
     items = arr.map(x => ({
       ...x,
       word: normalizeWord(x.word),
@@ -618,12 +516,8 @@ function doImport(){
     alert("形式が合ってるJSONをそのまま貼ってOK");
   }
 }
-
 function trashAll(){
-  if (!items.length){
-    alert("移動できる単語がまだない。");
-    return;
-  }
+  if (!items.length){ alert("移動できる単語がまだない。"); return; }
   const ok = confirm("全単語をゴミ箱へ移動する？（復元OK）");
   if (!ok) return;
   trash.unshift(...items.map(it => ({...it, trashedAt: now()})));
@@ -633,13 +527,8 @@ function trashAll(){
   renderList();
   alert("ゴミ箱へ移動した");
 }
-
 function openTrash(){
-  // 簡易UI：promptで復元
-  if (!trash.length){
-    alert("ゴミ箱は空。");
-    return;
-  }
+  if (!trash.length){ alert("ゴミ箱は空。"); return; }
   const sample = trash.slice(0, 30).map((t,i)=>`${i+1}. ${t.word}`).join("\n");
   const ans = window.prompt(`復元したい番号（1-${Math.min(30,trash.length)}）を入力:\n\n${sample}`);
   if (!ans) return;
@@ -648,7 +537,6 @@ function openTrash(){
 
   const it = trash.splice(n-1, 1)[0];
   if (it){
-    // 同単語があれば上書きせず追加回避
     if (!items.find(x=>x.word===it.word)) items.unshift({...it, id: uid(), restoredAt: now()});
     save(STORE_KEY, items);
     save(TRASH_KEY, trash);
@@ -657,75 +545,87 @@ function openTrash(){
   }
 }
 
-/* -----------------------------
-  Tutorial
--------------------------------- */
+/* --- Tutorial (event delegation fix) --- */
 let tutoIndex = 0;
 
+function slides(){ return $$("#tutoSlides .tuto__slide"); }
+
 function renderDots(){
-  const slides = $$("#tutoSlides .tuto__slide");
   const dots = $("#tutoDots");
   if (!dots) return;
-  dots.innerHTML = slides.map((_,i)=>`<span class="dot ${i===tutoIndex?"is-active":""}"></span>`).join("");
+  dots.innerHTML = slides().map((_,i)=>`<span class="dot ${i===tutoIndex?"is-active":""}"></span>`).join("");
 }
 
 function showSlide(i){
-  const slides = $$("#tutoSlides .tuto__slide");
-  tutoIndex = Math.max(0, Math.min(i, slides.length-1));
-  slides.forEach((s,idx)=>s.classList.toggle("is-active", idx===tutoIndex));
+  const ss = slides();
+  if (!ss.length) return;
+
+  tutoIndex = Math.max(0, Math.min(i, ss.length-1));
+  ss.forEach((s,idx)=>s.classList.toggle("is-active", idx===tutoIndex));
   renderDots();
 
-  const prev = $("#tutoPrev");
   const next = $("#tutoNext");
-  if (prev) prev.textContent = (tutoIndex===0) ? "戻る" : "戻る";
-  if (next) next.textContent = (tutoIndex===slides.length-1) ? "完了" : "次へ";
+  if (next) next.textContent = (tutoIndex===ss.length-1) ? "完了" : "次へ";
 }
 
-function closeTuto(){
-  const t = $("#tuto");
-  if (t) t.hidden = true;
-  localStorage.setItem(SEEN_KEY, "1");
-}
-
-function maybeOpenTuto(){
-  const seen = localStorage.getItem(SEEN_KEY);
-  if (seen) return;
+function openTuto(){
   const t = $("#tuto");
   if (!t) return;
   t.hidden = false;
   showSlide(0);
 }
 
-/* -----------------------------
-  Events
--------------------------------- */
-function bind(){
-  // tabs
-  $$(".tab").forEach(b => {
-    b.addEventListener("click", () => setTab(b.dataset.tab));
-  });
+function closeTuto(){
+  const t = $("#tuto");
+  if (!t) return;
+  t.hidden = true;
+  localStorage.setItem(SEEN_KEY, "1");
+}
 
-  // theme
+function maybeOpenTuto(){
+  const seen = localStorage.getItem(SEEN_KEY);
+  if (seen) return;
+  openTuto();
+}
+
+/* ✅ ここが本命：ボタンが死んでも拾える“委譲” */
+function tutorialDelegation(){
+  document.addEventListener("click", (e) => {
+    const t = $("#tuto");
+    if (!t || t.hidden) return;
+
+    const el = e.target.closest("#tutoSkip, #tutoPrev, #tutoNext");
+    if (!el) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (el.id === "tutoSkip") { closeTuto(); return; }
+    if (el.id === "tutoPrev") { showSlide(tutoIndex - 1); return; }
+    if (el.id === "tutoNext") {
+      const ss = slides();
+      if (tutoIndex >= ss.length - 1) closeTuto();
+      else showSlide(tutoIndex + 1);
+      return;
+    }
+  }, { passive:false, capture:true });
+}
+
+/* --- Events --- */
+function bind(){
+  $$(".tab").forEach(b => b.addEventListener("click", () => setTab(b.dataset.tab)));
   $("#themeBtn")?.addEventListener("click", cycleTheme);
 
-  // search
   $("#search")?.addEventListener("input", renderList);
-  $("#clearSearch")?.addEventListener("click", () => {
-    const s = $("#search");
-    if (s) s.value = "";
-    renderList();
-  });
+  $("#clearSearch")?.addEventListener("click", () => { $("#search").value=""; renderList(); });
   $("#filterLevel")?.addEventListener("change", renderList);
   $("#sortBy")?.addEventListener("change", renderList);
 
-  // bulk add
   $("#addBulk")?.addEventListener("click", () => {
     const txt = $("#bulk")?.value || "";
     const ws = splitWords(txt);
-    if (!ws.length){
-      alert("英単語を貼ってから「追加する」。");
-      return;
-    }
+    if (!ws.length){ alert("英単語を貼ってから「追加する」。"); return; }
+
     let added = 0;
     for (const w of ws){
       const before = items.length;
@@ -736,7 +636,7 @@ function bind(){
     save(STORE_KEY, items);
     renderList();
 
-    const targets = ws.map(w => items.find(x=>x.word===normalizeWord(w))).filter(Boolean);
+    const targets = ws.map(w => items.find(x => x.word === normalizeWord(w))).filter(Boolean);
     okCount = 0; holdCount = 0;
     enqueueItems(targets);
 
@@ -745,10 +645,7 @@ function bind(){
 
   $("#retryMissing")?.addEventListener("click", () => {
     const missing = items.filter(x => x.pending || x.hold || !x.fetchedAt);
-    if (!missing.length){
-      alert("再取得対象が今は少ない。");
-      return;
-    }
+    if (!missing.length){ alert("再取得対象が今は少ない。"); return; }
     okCount = 0; holdCount = 0;
     missing.forEach(x => { x.pending = true; x.hold = false; });
     save(STORE_KEY, items);
@@ -756,47 +653,24 @@ function bind(){
     enqueueItems(missing);
   });
 
-  // flash
   $("#startFlash")?.addEventListener("click", startFlash);
-  $("#endFlash")?.addEventListener("click", () => {
-    closeFlashOverlay();
-    setTab("list");
-  });
+  $("#endFlash")?.addEventListener("click", () => { closeFlashOverlay(); setTab("list"); });
+
   $("#revealBtn")?.addEventListener("click", reveal);
   $("#nextBtn")?.addEventListener("click", next);
 
-  $$("#rateRow .rate").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const lv = btn.dataset.rate;
-      rate(lv);
-      // 評価したら次へ（テンポ重視）
-      next();
-    });
-  });
+  $$("#rateRow .rate").forEach(btn => btn.addEventListener("click", () => {
+    rate(btn.dataset.rate);
+    next();
+  }));
 
-  $("#doneClose")?.addEventListener("click", () => {
-    closeFlashOverlay();
-    setTab("list");
-  });
+  $("#doneClose")?.addEventListener("click", () => { closeFlashOverlay(); setTab("list"); });
 
-  // export/import
   $("#exportBtn")?.addEventListener("click", doExport);
   $("#importBtn")?.addEventListener("click", doImport);
-
-  // trash
   $("#trashAll")?.addEventListener("click", trashAll);
   $("#openTrash")?.addEventListener("click", openTrash);
 
-  // tutorial
-  $("#tutoSkip")?.addEventListener("click", closeTuto);
-  $("#tutoPrev")?.addEventListener("click", () => showSlide(tutoIndex - 1));
-  $("#tutoNext")?.addEventListener("click", () => {
-    const slides = $$("#tutoSlides .tuto__slide");
-    if (tutoIndex >= slides.length - 1) closeTuto();
-    else showSlide(tutoIndex + 1);
-  });
-
-  // keyboard in flash
   document.addEventListener("keydown", (e) => {
     const ov = $("#flashOverlay");
     if (!ov || ov.hidden) return;
@@ -817,14 +691,12 @@ function bind(){
 function init(){
   initTheme();
   updateQueueUI();
+  tutorialDelegation();   // ←先に仕込む（これでボタン死なない）
   bind();
   renderList();
   setTab("list");
-
-  // 初回チュートリアル
   maybeOpenTuto();
 
-  // PWA
   if ("serviceWorker" in navigator){
     navigator.serviceWorker.register("./sw.js").catch(()=>{});
   }
