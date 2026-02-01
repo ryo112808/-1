@@ -1,238 +1,278 @@
 <!doctype html>
-<html lang="ja" data-theme="auto">
+<html lang="ja" data-theme="light">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <meta name="theme-color" content="#111111" />
-  <link rel="manifest" href="manifest.json?v=7">
+  <meta name="theme-color" content="#ffffff" />
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="styles.css">
   <title>単語plus</title>
-  <link rel="stylesheet" href="styles.css?v=7" />
 </head>
-
 <body>
-  <!-- Top bar -->
   <header class="topbar">
     <div class="brand">
-      <div class="brand__name">単語plus</div>
-      <div class="brand__tag">貼る → 自分だけの単語帳 → フラッシュ</div>
+      <div class="brand-title">単語plus</div>
+      <div class="brand-sub">貼る → 和訳つける → フラッシュで確認</div>
     </div>
-
     <div class="top-actions">
-      <button class="iconbtn" id="themeBtn" type="button" aria-label="テーマ切替">🌗</button>
+      <button class="btn ghost" id="themeBtn" type="button" aria-label="テーマ切替">☀︎/☾</button>
+      <button class="btn ghost" id="helpBtn" type="button">使い方</button>
     </div>
   </header>
 
   <main class="container">
-    <!-- Tabs -->
-    <nav class="tabs" aria-label="メインメニュー">
-      <button class="tab is-active" type="button" data-tab="list" aria-selected="true">リスト</button>
-      <button class="tab" type="button" data-tab="paste" aria-selected="false">貼る</button>
-      <button class="tab" type="button" data-tab="flash" aria-selected="false">フラッシュ</button>
-      <button class="tab" type="button" data-tab="manage" aria-selected="false">管理</button>
-    </nav>
+    <!-- Primary CTA -->
+    <section class="hero card">
+      <div class="hero-row">
+        <div>
+          <div class="hero-title">自分だけの単語帳を、コピペで作る</div>
+          <div class="hero-sub">単語を貼って追加。自動で <b>和訳</b> / 定義 / 類語 を取得して保存。</div>
+        </div>
+        <button class="btn primary" id="openPaste" type="button">貼って追加</button>
+      </div>
+    </section>
 
-    <!-- LIST -->
-    <section id="tab_list" class="card" aria-label="リスト">
+    <!-- Search + quick stats -->
+    <section class="card">
       <div class="row">
-        <input id="search" class="input" placeholder="検索：単語 / 和訳 / メモ / #タグ" autocomplete="off" />
+        <input id="search" class="input" placeholder="検索：単語 / 和訳 / 定義 / 類語 / メモ / タグ" autocomplete="off" />
         <button class="btn" id="clearSearch" type="button">クリア</button>
       </div>
 
-      <div class="row">
-        <select id="filterLevel" class="select" aria-label="暗記度で絞る">
-          <option value="all">暗記度：全部</option>
-          <option value="0">未習得</option>
-          <option value="1">あやふや</option>
-          <option value="2">習得</option>
-          <option value="3">定着</option>
-        </select>
-
-        <select id="sortBy" class="select" aria-label="並び替え">
-          <option value="new">並び：新しい順</option>
-          <option value="old">並び：古い順</option>
-          <option value="az">並び：A→Z</option>
-        </select>
+      <div class="chips" id="statusChips" aria-live="polite">
+        <!-- filled by JS -->
       </div>
 
-      <div class="cardTitle">単語一覧</div>
-      <div id="listArea" class="listArea"></div>
+      <div class="row">
+        <button class="btn" id="toList" type="button">一覧</button>
+        <button class="btn" id="toFlash" type="button">フラッシュ</button>
+        <button class="btn" id="toManage" type="button">管理</button>
+      </div>
     </section>
 
-    <!-- PASTE -->
-    <section id="tab_paste" class="card" hidden aria-label="貼る">
-      <div class="cardTitle">貼って追加</div>
-      <div class="muted">
-        英単語を <b>改行 / スペース / カンマ / スラッシュ</b> で区切って貼る → <b>追加する</b>。
+    <!-- Views -->
+    <section id="viewList" class="view">
+      <div class="card">
+        <div class="card-title">一覧</div>
+        <div class="muted">単語タップで詳細。スワイプ操作いらない。全部ここで完結。</div>
       </div>
 
-      <div class="sp8"></div>
-      <textarea id="bulk" class="textarea" placeholder="例：claim / nevertheless / abundant&#10;conspicuous&#10;speculate"></textarea>
-
-      <div class="sp8"></div>
-      <div class="row">
-        <button class="btn primary" id="addBulk" type="button">追加する</button>
-        <button class="btn" id="retryMissing" type="button">未準備を再取得</button>
+      <div id="list" class="list"></div>
+      <div class="card center" id="listEmpty" hidden>
+        <div class="muted">まだ単語が空っぽ。上の「貼って追加」から入れる。</div>
       </div>
-
-      <div class="sp8"></div>
-      <div class="row">
-        <div class="pill" id="qLabel">待機 0</div>
-        <div class="pill" id="pLabel">進行 0</div>
-        <div class="pill" id="sLabel">成功 0</div>
-        <div class="pill" id="fLabel">保留 0</div>
-      </div>
-
-      <div class="sp8"></div>
-      <div class="hint" id="queueHint">取得：完了</div>
     </section>
 
-    <!-- FLASH -->
-    <section id="tab_flash" class="card" hidden aria-label="フラッシュ">
-      <div class="cardTitle">フラッシュ</div>
-      <div class="muted">「答え」で和訳を出す → 評価 → 次へ。指定数で必ず終了。</div>
+    <section id="viewFlash" class="view" hidden>
+      <div class="card">
+        <div class="flash-head">
+          <div>
+            <div class="card-title">フラッシュ</div>
+            <div class="muted">英単語だけ表示 →「答え」で和訳 → 評価で次へ</div>
+          </div>
+          <button class="btn danger subtle" id="exitFlash" type="button">終了</button>
+        </div>
 
-      <div class="sp8"></div>
-      <div class="row">
-        <select id="flashLevel" class="select" aria-label="出題範囲">
-          <option value="all">範囲：全部</option>
-          <option value="0">未習得のみ</option>
-          <option value="1">あやふやのみ</option>
-          <option value="2">習得のみ</option>
-          <option value="3">定着のみ</option>
-        </select>
+        <div class="row">
+          <select id="flashCount" class="select">
+            <option value="10">出題数：10</option>
+            <option value="20" selected>出題数：20</option>
+            <option value="30">出題数：30</option>
+            <option value="50">出題数：50</option>
+          </select>
+          <select id="flashFilter" class="select">
+            <option value="all" selected>対象：全部</option>
+            <option value="0">暗記度：0（未習得）</option>
+            <option value="1">暗記度：1（不確実）</option>
+            <option value="2">暗記度：2（習得）</option>
+            <option value="3">暗記度：3（定着）</option>
+          </select>
+        </div>
 
-        <input id="flashCount" class="input" inputmode="numeric" pattern="[0-9]*" value="20" aria-label="出題数" />
+        <div class="row">
+          <button class="btn primary" id="startFlash" type="button">開始</button>
+          <button class="btn" id="shuffleFlash" type="button">シャッフル</button>
+        </div>
+
+        <div class="flash-stage card" id="flashStage" hidden>
+          <div class="flash-top">
+            <div class="muted" id="flashProgress">0 / 0</div>
+          </div>
+
+          <div class="flash-word" id="flashWord">—</div>
+
+          <div class="flash-answer" id="flashAnswer" hidden>
+            <div class="label">和訳</div>
+            <div class="ja" id="flashJa">—</div>
+            <div class="divider"></div>
+            <div class="label">英語定義（参考）</div>
+            <div class="en" id="flashDef">—</div>
+          </div>
+
+          <div class="row">
+            <button class="btn primary" id="reveal" type="button">答え</button>
+            <button class="btn" id="next" type="button">次へ</button>
+          </div>
+
+          <div class="rates" id="rateBox" hidden>
+            <button class="btn rate" data-rate="0" type="button">未習得</button>
+            <button class="btn rate" data-rate="1" type="button">不確実</button>
+            <button class="btn rate" data-rate="2" type="button">習得</button>
+            <button class="btn rate" data-rate="3" type="button">定着</button>
+          </div>
+
+          <div class="muted tiny" id="flashHint">答えを出すと評価ボタンが出る。</div>
+        </div>
       </div>
 
-      <div class="row">
-        <label class="check">
-          <input id="flashShuffle" type="checkbox" checked />
-          <span>シャッフル</span>
-        </label>
-
-        <button class="btn primary" id="startFlash" type="button">開始</button>
+      <div class="card center" id="flashEmpty" hidden>
+        <div class="muted">出題できる単語がまだ無い。</div>
       </div>
-
-      <div class="hint">※「開始」すると学習画面が前面に出る（下でこちょこちょしない）。</div>
     </section>
 
-    <!-- MANAGE -->
-    <section id="tab_manage" class="card" hidden aria-label="管理">
-      <div class="cardTitle">バックアップ</div>
-      <div class="muted">入試前はここだけ覚えればOK：<b>エクスポート</b>してメモ帳に保存。</div>
-
-      <div class="sp8"></div>
-      <div class="row">
-        <button class="btn" id="exportBtn" type="button">エクスポート（コピー）</button>
-        <button class="btn" id="importBtn" type="button">インポート</button>
+    <section id="viewManage" class="view" hidden>
+      <div class="card">
+        <div class="card-title">管理</div>
+        <div class="muted">データ保護を最優先。削除はゴミ箱へ → 復元OK。</div>
       </div>
 
-      <div class="sp16"></div>
-      <div class="cardTitle">ゴミ箱</div>
-      <div class="muted">削除はゴミ箱へ。復元できる。</div>
+      <div class="card">
+        <div class="row">
+          <button class="btn" id="exportBtn" type="button">エクスポート</button>
+          <button class="btn" id="importBtn" type="button">インポート</button>
+        </div>
 
-      <div class="sp8"></div>
-      <div class="row">
-        <button class="btn" id="openTrash" type="button">ゴミ箱を見る（復元）</button>
-        <button class="btn danger" id="trashAll" type="button">全消去（ゴミ箱へ）</button>
+        <div class="row">
+          <button class="btn" id="backupBtn" type="button">バックアップ復元</button>
+          <button class="btn danger" id="emptyTrash" type="button">ゴミ箱を空にする（長押し）</button>
+        </div>
+
+        <div class="row">
+          <button class="btn danger subtle" id="moveAllToTrash" type="button">全消去（ゴミ箱へ）</button>
+          <button class="btn" id="undoBtn" type="button" disabled>取り消し</button>
+        </div>
+
+        <div class="muted tiny">※「完全削除」は長押し操作。</div>
       </div>
 
-      <div class="sp16"></div>
-      <div class="cardTitle">チュートリアル</div>
-      <div class="row">
-        <button class="btn" type="button" onclick="localStorage.removeItem('tango_plus_seen_v6'); location.reload();">
-          もう一度表示
-        </button>
+      <div class="card">
+        <div class="card-title">ゴミ箱</div>
+        <div class="muted">ここから復元できる。</div>
+        <div id="trashList" class="list"></div>
+        <div class="muted tiny" id="trashEmpty">ゴミ箱は空。</div>
       </div>
     </section>
   </main>
 
-  <!-- Flash Overlay (独立感) -->
-  <section id="flashOverlay" class="overlay" hidden aria-label="フラッシュ画面">
-    <div class="overlay__top">
-      <div id="flashProgress" class="overlay__progress">0 / 0</div>
-      <button class="btn ghost" id="endFlash" type="button">終了</button>
-    </div>
+  <!-- Paste Modal -->
+  <div class="overlay" id="pasteModal" hidden>
+    <div class="modal card">
+      <div class="modal-head">
+        <div>
+          <div class="card-title">まとめて貼って追加</div>
+          <div class="muted tiny">改行 / スペース / カンマ / スラッシュ区切りOK（重複は統合）</div>
+        </div>
+        <button class="btn ghost" id="closePaste" type="button">閉じる</button>
+      </div>
 
-    <div class="overlay__card">
-      <div class="flashWord" id="flashWord">word</div>
-      <div class="flashPhonetic" id="flashPhonetic"></div>
+      <textarea id="bulk" class="textarea" placeholder="例：
+claim
+nevertheless
+abundant, prominent / speculate"></textarea>
+
+      <div class="row">
+        <button class="btn primary" id="bulkAdd" type="button">追加する</button>
+        <button class="btn" id="bulkClear" type="button">消す</button>
+      </div>
+
+      <div class="progress" id="queueBox" hidden>
+        <div class="muted tiny" id="queueText">取得中…</div>
+        <div class="bar"><div class="bar-inner" id="queueBar"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Detail Modal -->
+  <div class="overlay" id="detailModal" hidden>
+    <div class="modal card">
+      <div class="modal-head">
+        <div class="card-title" id="detailTitle">詳細</div>
+        <button class="btn ghost" id="closeDetail" type="button">閉じる</button>
+      </div>
+
+      <div class="grid2">
+        <div>
+          <div class="label">和訳（自動）</div>
+          <textarea id="detailJa" class="textarea smallarea" placeholder="和訳"></textarea>
+        </div>
+        <div>
+          <div class="label">メモ（任意）</div>
+          <textarea id="detailNote" class="textarea smallarea" placeholder="例：出題で見た文脈"></textarea>
+        </div>
+      </div>
+
+      <div>
+        <div class="label">タグ（スペース区切り）</div>
+        <input id="detailTags" class="input" placeholder="例：abstract verb comparison" />
+      </div>
+
+      <div class="sp10"></div>
+
+      <details class="details">
+        <summary>英語定義 / 類語（参考）</summary>
+        <div class="sp10"></div>
+        <div class="label">定義</div>
+        <div class="mono" id="detailDef">—</div>
+        <div class="sp10"></div>
+        <div class="label">類語</div>
+        <div class="mono" id="detailSyn">—</div>
+      </details>
 
       <div class="sp12"></div>
 
       <div class="row">
-        <button class="btn primary" id="revealBtn" type="button">答え</button>
-        <button class="btn" id="nextBtn" type="button">次へ</button>
-      </div>
-
-      <div class="sp12"></div>
-
-      <div id="answerBox" class="answer" hidden>
-        <div class="answer__label">和訳</div>
-        <div class="answer__ja" id="flashJa"></div>
-      </div>
-
-      <div class="sp12"></div>
-
-      <div id="rateRow" class="rateRow" hidden>
-        <button class="btn rate" type="button" data-rate="0">未習得</button>
-        <button class="btn rate" type="button" data-rate="1">あやふや</button>
-        <button class="btn rate" type="button" data-rate="2">習得</button>
-        <button class="btn rate" type="button" data-rate="3">定着</button>
-      </div>
-
-      <div class="sp8"></div>
-      <div class="hint" id="flashHint">「答え」で和訳を表示</div>
-      <div class="muted tiny" id="flashMeta"></div>
-    </div>
-
-    <div id="flashDone" class="overlay__done" hidden>
-      <div class="doneTitle">おつかれ！</div>
-      <div class="doneText" id="doneText"></div>
-      <div class="sp12"></div>
-      <button class="btn primary" id="doneClose" type="button">リストへ戻る</button>
-    </div>
-  </section>
-
-  <!-- Tutorial Overlay -->
-  <section id="tuto" class="tuto" hidden aria-label="使い方">
-    <div class="tuto__sheet" role="dialog" aria-modal="true">
-      <div class="tuto__head">
-        <div class="tuto__title">使い方</div>
-        <button class="btn ghost" id="tutoSkip" type="button">スキップ</button>
-      </div>
-
-      <div id="tutoSlides" class="tuto__slides">
-        <div class="tuto__slide is-active">
-          <div class="tuto__step">① 貼る</div>
-          <div class="tuto__text">「貼る」タブで英単語をまとめて貼る → 「追加する」。</div>
-        </div>
-
-        <div class="tuto__slide">
-          <div class="tuto__step">② 自分だけの単語帳</div>
-          <div class="tuto__text">リストに溜まる。和訳は自動で入る（要確認なら手で直せる）。</div>
-        </div>
-
-        <div class="tuto__slide">
-          <div class="tuto__step">③ フラッシュ</div>
-          <div class="tuto__text">「開始」→ 学習画面が前面に出る。答え→評価→次へ。</div>
-        </div>
-
-        <div class="tuto__slide">
-          <div class="tuto__step">④ バックアップ</div>
-          <div class="tuto__text">管理→エクスポートをコピーしてメモ帳に保存。入試前はこれだけ。</div>
-        </div>
-      </div>
-
-      <div class="tuto__dots" id="tutoDots"></div>
-
-      <div class="tuto__foot">
-        <button class="btn" id="tutoPrev" type="button">戻る</button>
-        <button class="btn primary" id="tutoNext" type="button">次へ</button>
+        <button class="btn danger subtle" id="trashOne" type="button">ゴミ箱へ</button>
+        <button class="btn primary" id="saveDetail" type="button">保存</button>
       </div>
     </div>
-  </section>
+  </div>
 
-  <script src="app.js?v=7" defer></script>
+  <!-- Tutorial (Swipe carousel) -->
+  <div class="overlay" id="tutOverlay" hidden>
+    <div class="modal card tutorial">
+      <div class="modal-head">
+        <div class="card-title">使い方</div>
+        <button class="btn ghost" id="tutSkip" type="button">スキップ</button>
+      </div>
+
+      <div class="tut-rail" id="tutRail" aria-label="チュートリアル">
+        <section class="tut-page">
+          <div class="tut-big">① まず「貼って追加」</div>
+          <div class="tut-text">単語をコピペするだけで、自動で <b>和訳</b> / 定義 / 類語 を付けて保存。</div>
+        </section>
+        <section class="tut-page">
+          <div class="tut-big">② 一覧で確認</div>
+          <div class="tut-text">単語をタップすると詳細。和訳やメモは編集できる。</div>
+        </section>
+        <section class="tut-page">
+          <div class="tut-big">③ フラッシュで覚える</div>
+          <div class="tut-text">英単語 →「答え」で和訳 → 評価して次へ。出題数が終わったら終了。</div>
+        </section>
+        <section class="tut-page">
+          <div class="tut-big">④ データは守る</div>
+          <div class="tut-text">削除はゴミ箱へ。復元OK。完全削除は長押し。</div>
+        </section>
+      </div>
+
+      <div class="tut-dots" id="tutDots" aria-hidden="true"></div>
+
+      <div class="row">
+        <button class="btn" id="tutPrev" type="button">戻る</button>
+        <button class="btn primary" id="tutNext" type="button">次へ</button>
+      </div>
+    </div>
+  </div>
+
+  <script defer src="app.js"></script>
 </body>
 </html>
