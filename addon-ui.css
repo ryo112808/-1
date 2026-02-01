@@ -135,3 +135,51 @@ html.vp-noscreen-scroll, body.vp-noscreen-scroll{ height:100vh; overflow:hidden;
   .vp-test-bottom .vp-btn{ min-width: 64px; }
   .vp-word{ font-size: 36px; }
 }
+/* ===== Mobile: fixed answer bar (always reachable) ===== */
+.vp-test-shell{ padding-bottom: 88px; } /* フッター分の余白 */
+
+.vp-test-bottom{
+  position: fixed;
+  left: 10px;
+  right: 10px;
+  bottom: 18px;                /* ジェスチャーバーから離す */
+  z-index: 100000;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: 10px;
+  justify-content: stretch;
+}
+
+/* 1段目：答え表示/次へ を上に別列で置く */
+.vp-test-bottom.vp-bar2{
+  grid-template-columns: 1fr 1fr;
+  bottom: 84px;                /* 評価バーの上 */
+}
+
+/* ボタンをデカく、押した感を出す */
+.vp-test-bottom .vp-btn{
+  padding: 14px 10px;
+  font-size: 14px;
+  border-radius: 16px;
+}
+
+/* ラベル（小さい説明） */
+.vp-btn small{
+  display:block;
+  font-size:11px;
+  opacity:.75;
+  margin-top:2px;
+  font-weight:800;
+}
+
+/* 押した瞬間の視覚フィードバック */
+.vp-btn:active{
+  transform: translateY(1px) scale(.99);
+  filter: brightness(1.08);
+}
+
+/* 選択状態（Start画面のボタンにも使う） */
+.vp-selected{
+  outline: 2px solid var(--accent);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 20%, transparent);
+}
