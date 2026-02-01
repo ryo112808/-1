@@ -1,226 +1,152 @@
-/* addon-ui.css (MOBILE WINS)
-   - light/dark toggle
-   - force override original UI styles
-   - keep it readable on phone
-*/
+/* addon-ui.css — FINAL THEME SYSTEM (mobile-first) */
 
+/* =========================
+   THEME VARIABLES
+   ========================= */
+
+/* --- Dark (default) --- */
 :root{
-  --bg:#0b1020; --panel:#0f172a; --panel2:#111c33;
-  --text:#e5e7eb; --muted:#9aa4b2; --border:rgba(255,255,255,.10);
-  --accent:#7aa2ff; --ok:#4ad6a7; --warn:#f0c35a; --danger:#ff7b7b;
-  --shadow:0 10px 30px rgba(0,0,0,.35);
+  --bg:#0b1020;
+  --panel:#111827;
+  --panel2:#0f172a;
+  --text:#e5e7eb;
+  --muted:#9aa4b2;
+  --border:rgba(255,255,255,.12);
+
+  --accent:#7aa2ff;
+  --accent-soft:rgba(122,162,255,.25);
+
+  --ok:#4ad6a7;
+  --warn:#f0c35a;
+  --danger:#ff7b7b;
 }
 
+/* --- Light --- */
 :root[data-theme="light"]{
-  --bg:#f3f4f6; --panel:#ffffff; --panel2:#f9fafb;
-  --text:#111827; --muted:#6b7280; --border:rgba(17,24,39,.12);
-  --accent:#2563eb; --ok:#059669; --warn:#d97706; --danger:#dc2626;
-  --shadow:0 10px 30px rgba(17,24,39,.10);
+  --bg:#f5f6f8;
+  --panel:#ffffff;
+  --panel2:#f1f3f5;
+  --text:#111827;
+  --muted:#6b7280;
+  --border:rgba(17,24,39,.14);
+
+  --accent:#2563eb;
+  --accent-soft:rgba(37,99,235,.22);
+
+  --ok:#059669;
+  --warn:#d97706;
+  --danger:#dc2626;
 }
+
+/* =========================
+   GLOBAL RESET
+   ========================= */
 
 html, body{
   background:var(--bg) !important;
   color:var(--text) !important;
 }
 
-/* ===== MUST-WIN override for original app ===== */
-:root[data-theme="light"] body{
-  background:var(--bg) !important;
-  color:var(--text) !important;
+/* 元アプリの暗背景を完全に殺す */
+body *{
+  background-color:transparent;
 }
 
-/* だいたいの暗背景指定を“無効化”して明るくする */
-:root[data-theme="light"] body *{
-  color:var(--text) !important;
-  border-color:var(--border) !important;
-  box-shadow:none !important;
-}
+/* =========================
+   PANELS / BLOCKS
+   ========================= */
 
-/* 元UIのパネルっぽい要素を白系に寄せる */
-:root[data-theme="light"] body div,
-:root[data-theme="light"] body section,
-:root[data-theme="light"] body main,
-:root[data-theme="light"] body header,
-:root[data-theme="light"] body footer,
-:root[data-theme="light"] body nav,
-:root[data-theme="light"] body article,
-:root[data-theme="light"] body aside{
-  background-color:transparent !important;
-}
-
-/* 入力系 */
-:root[data-theme="light"] input,
-:root[data-theme="light"] textarea,
-:root[data-theme="light"] select{
-  background:var(--panel) !important;
-  color:var(--text) !important;
-  border:1px solid var(--border) !important;
-}
-
-/* ボタン */
-:root[data-theme="light"] button{
-  background:var(--panel2) !important;
-  color:var(--text) !important;
-  border:1px solid var(--border) !important;
-}
-
-/* ===== fixed buttons ===== */
-.vp-fixedbar{
-  position:fixed; right:12px; top:12px; z-index:99999;
-  display:flex; gap:10px;
-}
-.vp-btn{
+.vp-test,
+.vp-test-mid,
+.vp-test-shell,
+.vp-chip,
+.vp-btn,
+input,
+textarea,
+select{
+  background:var(--panel);
+  color:var(--text);
   border:1px solid var(--border);
+}
+
+/* =========================
+   TEXT
+   ========================= */
+
+.vp-word{
+  font-size:32px;
+  font-weight:900;
+  letter-spacing:.02em;
+}
+
+.vp-note{
+  font-size:13px;
+  color:var(--muted);
+  text-align:center;
+}
+
+/* =========================
+   BUTTONS
+   ========================= */
+
+.vp-btn{
+  border-radius:999px;
+  padding:12px 14px;
+  font-weight:900;
   background:var(--panel2);
   color:var(--text);
-  border-radius:999px;
-  padding:10px 12px;
-  font-weight:900;
-  font-size:13px;
-  box-shadow:var(--shadow);
 }
 
-/* ===== fullscreen test ===== */
-html.vp-noscreen-scroll, body.vp-noscreen-scroll{ height:100vh; overflow:hidden; }
-
-.vp-test-backdrop{
-  position:fixed; inset:0;
-  background:rgba(0,0,0,.55);
-  z-index:99998; display:none;
+.vp-btn:active{
+  transform:translateY(1px) scale(.99);
 }
-:root[data-theme="light"] .vp-test-backdrop{ background:rgba(17,24,39,.30); }
 
-.vp-test{
-  position:fixed; inset:0;
-  z-index:99999; display:none;
-  background:var(--bg);
+/* 選択状態 */
+.vp-selected{
+  border-color:var(--accent);
+  box-shadow:0 0 0 4px var(--accent-soft);
 }
+
+/* =========================
+   FIXED TEST BARS (mobile)
+   ========================= */
+
 .vp-test-shell{
-  height:100vh; display:flex; flex-direction:column;
-  padding:14px; gap:12px;
+  padding-bottom:96px;
 }
-.vp-chip{
-  border:1px solid var(--border);
-  background:var(--panel2);
-  border-radius:999px;
-  padding:6px 10px;
-  font-size:12px; font-weight:900;
-}
-.vp-chip b{ color:var(--accent); }
 
-.vp-test-mid{
-  flex:1;
-  display:flex; flex-direction:column;
-  justify-content:center; align-items:center;
+.vp-test-bottom{
+  position:fixed;
+  left:10px;
+  right:10px;
+  bottom:16px;
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
   gap:10px;
-  border:1px solid var(--border);
-  border-radius:18px;
-  padding:16px;
-  background:var(--panel);
-}
-.vp-word{ font-size:34px; font-weight:1000; text-align:center; }
-.vp-answer{ font-size:20px; font-weight:900; color:var(--ok); display:none; text-align:center; }
-.vp-note{ font-size:12px; color:var(--muted); text-align:center; line-height:1.35; }
-.vp-test-bottom{ display:flex; flex-wrap:wrap; gap:10px; justify-content:center; }
-.vp-kbd{
-  font-family:ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size:12px; padding:3px 7px;
-  border-radius:8px; border:1px solid var(--border);
-  background:var(--panel2);
-}
-
-/* Mobile: bigger touch targets */
-@media (max-width: 520px){
-  .vp-btn{ padding: 12px 14px; font-size: 14px; }
-  .vp-test-bottom .vp-btn{ min-width: 64px; }
-  .vp-word{ font-size: 36px; }
-}
-/* ===== Mobile: fixed answer bar (always reachable) ===== */
-.vp-test-shell{ padding-bottom: 88px; } /* フッター分の余白 */
-
-.vp-test-bottom{
-  position: fixed;
-  left: 10px;
-  right: 10px;
-  bottom: 18px;                /* ジェスチャーバーから離す */
-  z-index: 100000;
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1fr;
-  gap: 10px;
-  justify-content: stretch;
-}
-
-/* 1段目：答え表示/次へ を上に別列で置く */
-.vp-test-bottom.vp-bar2{
-  grid-template-columns: 1fr 1fr;
-  bottom: 84px;                /* 評価バーの上 */
-}
-
-/* ボタンをデカく、押した感を出す */
-.vp-test-bottom .vp-btn{
-  padding: 14px 10px;
-  font-size: 14px;
-  border-radius: 16px;
-}
-
-/* ラベル（小さい説明） */
-.vp-btn small{
-  display:block;
-  font-size:11px;
-  opacity:.75;
-  margin-top:2px;
-  font-weight:800;
-}
-
-/* 押した瞬間の視覚フィードバック */
-.vp-btn:active{
-  transform: translateY(1px) scale(.99);
-  filter: brightness(1.08);
-}
-
-/* 選択状態（Start画面のボタンにも使う） */
-.vp-selected{
-  outline: 2px solid var(--accent);
-  box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 20%, transparent);
-}
-/* ===== Mobile: fixed answer bars (always reachable) ===== */
-.vp-test-shell{ padding-bottom: 96px; }
-
-.vp-test-bottom{
-  position: fixed;
-  left: 10px; right: 10px;
-  bottom: 18px;
-  z-index: 100000;
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1fr;
-  gap: 10px;
+  z-index:99999;
 }
 
 .vp-test-bottom.vp-bar2{
-  grid-template-columns: 1fr 1fr;
-  bottom: 84px;
-}
-
-.vp-test-bottom .vp-btn{
-  padding: 14px 10px;
-  font-size: 14px;
-  border-radius: 16px;
+  grid-template-columns:1fr 1fr;
+  bottom:80px;
 }
 
 .vp-btn small{
   display:block;
   font-size:11px;
-  opacity:.75;
+  opacity:.7;
   margin-top:2px;
-  font-weight:800;
 }
 
-.vp-btn:active{
-  transform: translateY(1px) scale(.99);
-  filter: brightness(1.08);
-}
+/* =========================
+   FIXED TOP BAR
+   ========================= */
 
-.vp-selected{
-  outline: 2px solid var(--accent);
-  box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 20%, transparent);
+.vp-fixedbar{
+  position:fixed;
+  top:12px;
+  right:12px;
+  display:flex;
+  gap:10px;
+  z-index:100000;
 }
