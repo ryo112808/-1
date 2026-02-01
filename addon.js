@@ -732,3 +732,40 @@ document.addEventListener("click", (e) => {
     console.log("[Exit] test closed");
   }
 }, true);
+// ===== EXIT FINAL FIX (embedded test mode) =====
+(function(){
+  function hardExit(){
+    console.log("[Exit] hard reset");
+
+    // テスト状態を完全初期化
+    if (window.state) {
+      window.state.stage = "idle";
+      window.state.session = null;
+      window.state.queue = [];
+    }
+
+    // テストUIを通常モードに戻す
+    document.querySelectorAll(".vp-test").forEach(el=>{
+      el.style.display = "block";
+    });
+
+    // 念のため test-open を外す
+    document.body.classList.remove("test-open");
+
+    // 画面をトップに戻す（スマホ用）
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  // Exit ボタンを常時監視（構造変わっても拾う）
+  document.addEventListener("click", (e)=>{
+    const el = e.target.closest("button,div");
+    if (!el) return;
+
+    const text = el.textContent?.trim();
+    if (text === "Exit") {
+      e.preventDefault();
+      e.stopPropagation();
+      hardExit();
+    }
+  }, true);
+})();
