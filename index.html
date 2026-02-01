@@ -3,1223 +3,342 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <meta name="theme-color" content="#0b0f14" />
+  <meta name="theme-color" content="#0f1115" />
+  <link rel="manifest" href="manifest.json" />
   <title>単語plus</title>
-  <link rel="manifest" href="./manifest.json" />
-  <style>
-    :root{
-      --bg:#f6f7fb;
-      --card:#ffffff;
-      --text:#0b0f14;
-      --muted:#6b7280;
-      --line:#e6e8ef;
-      --shadow:0 10px 30px rgba(0,0,0,.06);
-      --radius:18px;
-      --primary:#0b0f14;
-      --danger:#c1121f;
-      --good:#0b0f14;
-      --chip:#f1f3f9;
-      --chipLine:#e7eaf3;
-    }
-    *{ box-sizing:border-box; }
-    html,body{ height:100%; }
-    body{
-      margin:0;
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif;
-      background:var(--bg);
-      color:var(--text);
-      -webkit-font-smoothing: antialiased;
-      padding: 14px 14px 90px;
-    }
-    .wrap{ max-width: 980px; margin: 0 auto; }
-    .top{
-      display:flex; gap:10px; align-items:center; justify-content:space-between;
-      margin: 6px 0 12px;
-    }
-    .brand{
-      display:flex; flex-direction:column; gap:2px;
-    }
-    .brand b{ font-size:18px; letter-spacing:.2px; }
-    .brand span{ font-size:12px; color:var(--muted); }
-    .tabs{
-      position: sticky;
-      top: 10px;
-      z-index: 10;
-      display:flex; gap:10px;
-      background: rgba(246,247,251,.8);
-      backdrop-filter: blur(10px);
-      padding: 10px 0;
-    }
-    .tabbtn{
-      flex:1;
-      padding: 12px 10px;
-      border-radius: 16px;
-      border:1px solid var(--line);
-      background:#fff;
-      color:var(--text);
-      font-weight:700;
-      font-size:14px;
-      box-shadow: 0 6px 16px rgba(0,0,0,.04);
-    }
-    .tabbtn.active{
-      background: var(--primary);
-      color: #fff;
-      border-color: transparent;
-      box-shadow: 0 12px 28px rgba(11,15,20,.25);
-    }
-    .card{
-      background:var(--card);
-      border:1px solid var(--line);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      padding: 14px;
-      margin: 10px 0;
-    }
-    .row{ display:flex; gap:10px; align-items:center; }
-    .row > *{ flex:1; }
-    .btn{
-      appearance:none;
-      border:0;
-      border-radius: 16px;
-      padding: 12px 14px;
-      font-weight: 800;
-      font-size: 15px;
-      background: var(--primary);
-      color: #fff;
-    }
-    .btn:disabled{ opacity:.55; }
-    .btn.ghost{
-      background:#fff;
-      color:var(--text);
-      border: 1px solid var(--line);
-      box-shadow: 0 6px 16px rgba(0,0,0,.04);
-    }
-    .btn.danger{ background: var(--danger); }
-    input, textarea, select{
-      width:100%;
-      padding: 12px 12px;
-      border-radius: 16px;
-      border:1px solid var(--line);
-      background:#fff;
-      font-size: 15px;
-      outline: none;
-    }
-    textarea{ min-height: 140px; resize: vertical; }
-    .hint{ color:var(--muted); font-size:12px; line-height:1.35; }
-    .kpi{
-      display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;
-    }
-    .pill{
-      display:inline-flex; align-items:center; gap:8px;
-      padding: 8px 10px;
-      border-radius: 999px;
-      background: var(--chip);
-      border:1px solid var(--chipLine);
-      font-size:12px;
-      color: #111827;
-      font-weight: 700;
-    }
-    .pill small{ font-weight:800; color:var(--muted); }
-    .listHead{
-      display:flex; gap:10px; flex-wrap:wrap; align-items:center;
-    }
-    .listHead .grow{ flex: 999; min-width: 220px; }
-    .split{
-      display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;
-    }
-    .split > *{ flex: 1; min-width: 160px; }
-    .chip{
-      display:inline-flex; align-items:center; gap:6px;
-      padding: 6px 10px;
-      border-radius:999px;
-      background: var(--chip);
-      border:1px solid var(--chipLine);
-      font-size:12px;
-      color:#111827;
-      font-weight:700;
-    }
-    .chip input{
-      width: 12px; height: 12px; margin:0;
-    }
-    .wordLine{
-      display:flex; align-items:flex-start; justify-content:space-between; gap:10px;
-    }
-    .word{
-      font-size: 20px;
-      font-weight: 900;
-      letter-spacing: .3px;
-    }
-    .meta{
-      display:flex; gap:8px; flex-wrap:wrap; margin-top:6px;
-      color:var(--muted);
-      font-size:12px;
-    }
-    .line{ height:1px; background: var(--line); margin: 10px 0; }
-    .collapse{
-      margin-top:10px;
-      border-radius: 16px;
-      border:1px dashed var(--line);
-      padding: 10px;
-      background: #fbfcff;
-    }
-    .miniTitle{ font-weight:900; font-size:12px; color:#111827; margin: 8px 0 6px; }
-    ul{ margin: 6px 0 0 18px; padding:0; }
-    li{ margin: 4px 0; }
-    .muted{ color: var(--muted); }
-    .right{ text-align:right; }
-    .grid2{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap:10px;
-    }
-    @media (max-width: 520px){
-      .grid2{ grid-template-columns: 1fr; }
-    }
-    .toast{
-      position: fixed;
-      left: 14px;
-      right: 14px;
-      bottom: 14px;
-      z-index: 999;
-      background: rgba(11,15,20,.92);
-      color:#fff;
-      border-radius: 16px;
-      padding: 12px 14px;
-      box-shadow: 0 18px 50px rgba(0,0,0,.28);
-      display:none;
-      max-width: 980px;
-      margin: 0 auto;
-    }
-    .toast.show{ display:block; }
-    .flashCard{
-      text-align:center;
-      padding: 18px;
-    }
-    .flashWord{ font-size: 28px; font-weight: 1000; letter-spacing:.3px; }
-    .flashJP{ margin-top:10px; font-size: 16px; color: #111827; }
-    .flashDefs{ margin-top:10px; font-size:14px; color: var(--muted); }
-    .rateRow{ display:flex; gap:10px; margin-top: 14px; }
-    .rateRow .btn{ flex:1; }
-    .badge{
-      font-size: 12px;
-      font-weight: 900;
-      padding: 6px 10px;
-      border-radius:999px;
-      background: #fff;
-      border:1px solid var(--line);
-      color:#111827;
-      white-space:nowrap;
-    }
-  </style>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 
 <body>
-<div class="wrap">
-
-  <div class="top">
+  <div class="topbar">
     <div class="brand">
-      <b>単語plus</b>
-      <span>貼るだけで：定義・類語・（任意で日本語）を自動付与→保存。フラッシュで暗記度更新。</span>
-    </div>
-  </div>
-
-  <div class="tabs">
-    <button class="tabbtn active" data-tab="list">リスト</button>
-    <button class="tabbtn" data-tab="paste">貼る</button>
-    <button class="tabbtn" data-tab="flash">フラッシュ</button>
-    <button class="tabbtn" data-tab="manage">管理</button>
-  </div>
-
-  <!-- LIST -->
-  <section id="tab_list" class="card">
-    <div class="listHead">
-      <input class="grow" id="search" placeholder="検索（単語 / 定義 / 日本語 / 類語 / メモ / タグ）" />
-      <select id="filterDue">
-        <option value="all">出題：全部</option>
-        <option value="due">出題：期限のみ</option>
-      </select>
-      <select id="filterLevel">
-        <option value="all">暗記度：全部</option>
-        <option value="0">暗記度：0</option>
-        <option value="1">暗記度：1</option>
-        <option value="2">暗記度：2</option>
-        <option value="3">暗記度：3</option>
-        <option value="4">暗記度：4</option>
-      </select>
-      <select id="sortBy">
-        <option value="new">並び：新しい順</option>
-        <option value="old">並び：古い順</option>
-        <option value="due">並び：期限が近い順</option>
-        <option value="alpha">並び：A→Z</option>
-      </select>
-    </div>
-
-    <div class="split">
-      <input id="tagFilter" placeholder="タグで絞る（例：#論理 #抽象 #動詞）" />
-      <select id="pageSize">
-        <option value="30">表示：30件</option>
-        <option value="60">表示：60件</option>
-        <option value="120">表示：120件</option>
-      </select>
-      <button class="btn ghost" id="btnMore">続き表示</button>
-    </div>
-
-    <div class="kpi">
-      <div class="pill"><small>総数</small><span id="k_total">0</span></div>
-      <div class="pill"><small>期限</small><span id="k_due">0</span></div>
-      <div class="pill"><small>未取得</small><span id="k_pending">0</span></div>
-      <div class="pill"><small>今日復習</small><span id="k_today">0</span></div>
-    </div>
-
-    <div class="line"></div>
-    <div id="list"></div>
-  </section>
-
-  <!-- PASTE -->
-  <section id="tab_paste" class="card" style="display:none;">
-    <div class="grid2">
       <div>
-        <div class="miniTitle">単語をまとめて貼る</div>
-        <textarea id="pasteArea" placeholder="ここにコピペ（区切りは何でもOK）
-例：
-claim nevertheless abundant
-or
-claim / nevertheless / abundant
-or
-改行でずらっと"></textarea>
+        <h1>単語plus</h1>
+        <div class="sub">貼る→和訳取得→フラッシュ。削除はゴミ箱（復元OK）。</div>
+      </div>
+    </div>
 
-        <div class="kpi">
-          <label class="chip">
-            <input type="checkbox" id="jpAuto" />
-            日本語（自動）も付ける（外部翻訳が使える時だけ）
-          </label>
-          <label class="chip">
-            <input type="checkbox" id="autoTag" checked />
-            自動タグ（品詞・論理っぽさ）を少しだけ付ける
-          </label>
+    <div class="tabs">
+      <button class="tabBtn active" data-tab="list">リスト</button>
+      <button class="tabBtn" data-tab="paste">貼る</button>
+      <button class="tabBtn" data-tab="flash">フラッシュ</button>
+      <button class="tabBtn" data-tab="manage">管理</button>
+    </div>
+
+    <div class="searchBox">
+      <input id="search" placeholder="検索：単語 / 和訳 / メモ / #タグ（複数OK）" />
+      <button class="secondary" id="clearSearch">クリア</button>
+    </div>
+
+    <div class="pillRow">
+      <span class="pill"><b>待機</b> <span id="qWait">0</span></span>
+      <span class="pill"><b>進行</b> <span id="qRun">0</span></span>
+      <span class="pill"><b>成功</b> <span id="qOk">0</span></span>
+      <span class="pill"><b>失敗</b> <span id="qFail">0</span></span>
+      <span class="pill"><b>未取得</b> 和訳 <span id="mJa">0</span> / 定義 <span id="mDef">0</span> / 類語 <span id="mSyn">0</span> / 例文 <span id="mEx">0</span></span>
+    </div>
+  </div>
+
+  <div class="wrap">
+
+    <!-- LIST -->
+    <section id="sec_list" class="section active">
+      <div class="card">
+        <div class="filters">
+          <select id="sort">
+            <option value="new">並び：新しい順</option>
+            <option value="old">並び：古い順</option>
+            <option value="due">並び：期限が近い順</option>
+            <option value="az">並び：A→Z</option>
+          </select>
+          <select id="levelFilter">
+            <option value="all">暗記度：全部</option>
+            <option value="0">暗記度：0</option>
+            <option value="1">暗記度：1</option>
+            <option value="2">暗記度：2</option>
+            <option value="3">暗記度：3</option>
+            <option value="4">暗記度：4</option>
+          </select>
+          <select id="scope">
+            <option value="all">対象：全部</option>
+            <option value="due">対象：期限のみ</option>
+          </select>
+          <select id="pageSize">
+            <option value="30">表示：30件</option>
+            <option value="60">表示：60件</option>
+            <option value="120">表示：120件</option>
+          </select>
+          <button class="secondary" id="retryMissing">未取得を再取得</button>
+          <button class="secondary" id="retryFailed">失敗のみ再取得</button>
         </div>
-
-        <div class="row" style="margin-top:10px;">
-          <button class="btn" id="btnPasteAdd">まとめ追加（即保存→裏で取得）</button>
-          <button class="btn ghost" id="btnPasteClear">クリア</button>
-        </div>
-
-        <div class="hint" style="margin-top:10px;">
-          速度：単語は<strong>先に保存</strong>され、定義/類語は<strong>並列で裏取得</strong>します（体感が速い）。<br>
-          ※ 日本語自動は、公開翻訳サーバーが応答した時だけ入ります。
+        <div class="small" style="margin-top:10px">
+          フラッシュは和訳がある単語だけ出題。英語定義は詳細に隔離。
         </div>
       </div>
 
-      <div>
-        <div class="miniTitle">1個だけ追加</div>
+      <div class="listHead">
+        <div class="title">単語</div>
+        <div class="small"><span id="countNow">0</span> 件</div>
+      </div>
+
+      <div id="list"></div>
+      <div style="height:10px"></div>
+      <button class="secondary" id="moreBtn" style="width:100%;">続きを表示</button>
+    </section>
+
+    <!-- PASTE -->
+    <section id="sec_paste" class="section">
+      <div class="card">
+        <div style="font-weight:950;font-size:16px">まとめて貼る</div>
+        <div class="small">改行 / カンマ / スラッシュ / スペース区切りOK。正規化して重複統合。</div>
+        <div style="height:10px"></div>
+        <textarea id="pasteArea" placeholder="例：
+claim
+nevertheless, abundant / constitute
+..."></textarea>
+        <div style="height:10px"></div>
         <div class="row">
-          <input id="oneWord" placeholder="例: corroborate" autocomplete="off" />
-          <button class="btn" id="btnOneAdd">追加</button>
+          <button id="bulkAdd">まとめ追加（保存→取得）</button>
+          <button class="secondary" id="pasteDemo">例を入れる</button>
         </div>
 
-        <div class="line"></div>
-
-        <div class="miniTitle">取得状況</div>
-        <div class="hint" id="queueInfo">待機：0 / 進行：0</div>
-        <div class="hint muted" style="margin-top:8px;">
-          重い時は：表示件数を30に / カード折りたたみを使う
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- FLASH -->
-  <section id="tab_flash" class="card" style="display:none;">
-    <div class="row">
-      <select id="flashMode">
-        <option value="due">期限のみ</option>
-        <option value="all">全部</option>
-      </select>
-      <select id="flashLevel">
-        <option value="all">暗記度：全部</option>
-        <option value="0">暗記度：0</option>
-        <option value="1">暗記度：1</option>
-        <option value="2">暗記度：2</option>
-        <option value="3">暗記度：3</option>
-        <option value="4">暗記度：4</option>
-      </select>
-      <button class="btn ghost" id="btnShuffle">シャッフル</button>
-      <button class="btn" id="btnStartFlash">開始</button>
-    </div>
-
-    <div class="line"></div>
-
-    <div id="flashArea" class="flashCard">
-      <div class="muted">開始を押すと出題が出る</div>
-    </div>
-
-    <div class="hint" style="margin-top:10px;">
-      暗記度は自己判断でOK。押したボタンで次回の期限が伸びます。
-    </div>
-  </section>
-
-  <!-- MANAGE -->
-  <section id="tab_manage" class="card" style="display:none;">
-    <div class="row">
-      <button class="btn ghost" id="btnExport">エクスポート</button>
-      <button class="btn ghost" id="btnImport">インポート</button>
-      <button class="btn danger" id="btnClearAll">全消去</button>
-    </div>
-
-    <div class="line"></div>
-
-    <div class="miniTitle">おすすめ（共有アプリ前提）</div>
-    <div class="hint">
-      ・タグは <strong>#論理 #抽象 #動詞 #対比 #因果 #評価</strong> <br>
-      ・ホーム画面追加：Chrome ︙ →「ホーム画面に追加」。
-    </div>
-  </section>
-
-</div>
-
-<div id="toast" class="toast"></div>
-
-<script>
-/* =========================
-   VocabPlus v2 — fast & clean
-   - Instant save, background parallel fetch
-   - Concurrency limit + cache + debounce save
-   - Flash with self-rated SRS
-   ========================= */
-
-const STORE_KEY = "vocabplus_items_v2";
-const CACHE_KEY = "vocabplus_cache_v2"; // word -> {phonetic, defs, part, synonyms, example, jp}
-const META_KEY  = "vocabplus_meta_v2";
-
-const now = () => Date.now();
-const DAY = 24 * 60 * 60 * 1000;
-
-// Simple SRS intervals by level (0..4)
-const INTERVALS = [ 0.25, 1, 3, 7, 21 ].map(d => d * DAY); // 6h,1d,3d,7d,21d
-
-function toast(msg){
-  const t = document.getElementById("toast");
-  t.textContent = msg;
-  t.classList.add("show");
-  setTimeout(()=>t.classList.remove("show"), 1800);
-}
-
-function loadJSON(key, fallback){
-  try{
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
-  }catch(e){ return fallback; }
-}
-function saveJSON(key, value){
-  localStorage.setItem(key, JSON.stringify(value));
-}
-function norm(s){ return (s||"").toString().trim().toLowerCase(); }
-
-let items = loadJSON(STORE_KEY, []);
-let cache = loadJSON(CACHE_KEY, {}); // map
-let meta  = loadJSON(META_KEY, { reviewedToday: {} });
-
-function saveDebounced(){
-  clearTimeout(saveDebounced._t);
-  saveDebounced._t = setTimeout(()=>{
-    saveJSON(STORE_KEY, items);
-    saveJSON(CACHE_KEY, cache);
-    saveJSON(META_KEY, meta);
-  }, 120);
-}
-
-function uid(){
-  return String(now()) + "_" + Math.random().toString(16).slice(2);
-}
-
-/* =========
-   Tabs
-   ========= */
-document.querySelectorAll(".tabbtn").forEach(b=>{
-  b.addEventListener("click", ()=>{
-    document.querySelectorAll(".tabbtn").forEach(x=>x.classList.remove("active"));
-    b.classList.add("active");
-    const tab = b.getAttribute("data-tab");
-    ["list","paste","flash","manage"].forEach(t=>{
-      document.getElementById("tab_"+t).style.display = (t===tab) ? "" : "none";
-    });
-    if(tab==="list") renderList(true);
-  });
-});
-
-/* =========
-   Parsing
-   ========= */
-function extractWords(text){
-  // accept any separators; keep letters, apostrophe, hyphen
-  const raw = (text||"")
-    .replace(/[“”‘’]/g,"'")
-    .replace(/[\/、，,;|]+/g," ")
-    .replace(/\s+/g," ")
-    .trim();
-
-  if(!raw) return [];
-  const parts = raw.split(" ");
-  const words = [];
-  for(const p of parts){
-    const w = p.replace(/[^A-Za-z'\-]/g,"").trim();
-    if(!w) continue;
-    if(w.length < 2) continue;
-    words.push(w);
-  }
-  // unique, preserve order
-  const seen = new Set();
-  const out = [];
-  for(const w of words){
-    const k = norm(w);
-    if(seen.has(k)) continue;
-    seen.add(k);
-    out.push(w);
-  }
-  return out;
-}
-
-/* =========
-   Dictionary lookup (dictionaryapi.dev)
-   ========= */
-async function fetchWithTimeout(url, ms=7000){
-  const ctrl = new AbortController();
-  const t = setTimeout(()=>ctrl.abort(), ms);
-  try{
-    const r = await fetch(url, { signal: ctrl.signal });
-    return r;
-  } finally{
-    clearTimeout(t);
-  }
-}
-
-function pickMeanings(entry){
-  const phonetic = entry?.phonetic || entry?.phonetics?.find(p=>p?.text)?.text || "";
-  const meanings = entry?.meanings || [];
-  // pick first meaning with defs
-  let part = "";
-  let defs = [];
-  let synonyms = [];
-  let example = "";
-  for(const m of meanings){
-    const dlist = (m?.definitions || []).slice(0, 2);
-    const dtext = dlist.map(d=>d?.definition).filter(Boolean);
-    if(!dtext.length) continue;
-    part = m?.partOfSpeech || "";
-    defs = dtext;
-    // synonyms: from meaning or definitions
-    const syn1 = (m?.synonyms || []);
-    const syn2 = dlist.flatMap(d => d?.synonyms || []);
-    synonyms = [...syn1, ...syn2].filter(Boolean);
-    // example: first available
-    example = dlist.map(d=>d?.example).find(Boolean) || "";
-    break;
-  }
-  // clean synonyms unique & cap
-  const synSeen = new Set();
-  const synOut = [];
-  for(const s of synonyms){
-    const k = norm(s);
-    if(!k || synSeen.has(k)) continue;
-    synSeen.add(k);
-    synOut.push(s);
-    if(synOut.length >= 8) break;
-  }
-  return { phonetic, part, defs, synonyms: synOut, example };
-}
-
-async function lookupEN(word){
-  const url = "https://api.dictionaryapi.dev/api/v2/entries/en/" + encodeURIComponent(word);
-  const res = await fetchWithTimeout(url, 8000);
-  if(!res.ok) throw new Error("notfound");
-  const data = await res.json();
-  const entry = data?.[0];
-  return pickMeanings(entry);
-}
-
-/* =========
-   Optional JP translation via public LibreTranslate instances
-   (Best-effort only: if unavailable, JP stays blank.)
-   ========= */
-const LT_ENDPOINTS = [
-  "https://libretranslate.de/translate",
-  "https://translate.astian.org/translate"
-];
-
-async function translateToJP(text){
-  // Try endpoints sequentially, short timeout
-  for(const ep of LT_ENDPOINTS){
-    try{
-      const res = await fetchWithTimeout(ep, 4500);
-      // If GET works, still need POST; do a POST now
-      const r = await fetchWithTimeout(ep, 6500);
-    }catch(e){}
-    try{
-      const ctrl = new AbortController();
-      const t = setTimeout(()=>ctrl.abort(), 5500);
-      const r = await fetch(ep, {
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ q:text, source:"en", target:"ja", format:"text" }),
-        signal: ctrl.signal
-      });
-      clearTimeout(t);
-      if(!r.ok) continue;
-      const j = await r.json();
-      const out = j?.translatedText;
-      if(out && typeof out === "string") return out;
-    }catch(e){}
-  }
-  return "";
-}
-
-/* =========
-   Auto tagging (small & generic)
-   ========= */
-function autoTagsFor(item){
-  const tags = new Set(item.tags || []);
-  if(item.part){
-    if(item.part === "verb") tags.add("#動詞");
-    if(item.part === "noun") tags.add("#名詞");
-    if(item.part === "adjective") tags.add("#形容詞");
-    if(item.part === "adverb") tags.add("#副詞");
-  }
-  // lightweight heuristics
-  const w = norm(item.word);
-  if(w.endsWith("ly")) tags.add("#副詞");
-  if(w.endsWith("tion") || w.endsWith("sion") || w.endsWith("ment") || w.endsWith("ity")) tags.add("#抽象");
-  if(w.startsWith("un") || w.startsWith("in") || w.startsWith("im") || w.startsWith("dis") || w.startsWith("non")) tags.add("#否定");
-  return [...tags];
-}
-
-/* =========
-   Create item (instant)
-   ========= */
-function makeBlankItem(word){
-  return {
-    id: uid(),
-    word,
-    phonetic:"",
-    part:"",
-    defs:[],
-    synonyms:[],
-    example:"",
-    jp:"",        // optional auto JP
-    note:"",
-    tags:[],
-    level: 0,     // 0..4
-    createdAt: now(),
-    updatedAt: now(),
-    nextDue: now(),   // due now by default
-    lastReviewed: 0,
-    status: "pending" // pending | ok | fail
-  };
-}
-
-/* =========
-   Queue: parallel background fetch with concurrency limit
-   ========= */
-let q = [];
-let inFlight = 0;
-const CONCURRENCY = 6;
-
-function enqueue(itemId, options){
-  q.push({ itemId, options });
-  pumpQueue();
-  updateQueueInfo();
-}
-
-function updateQueueInfo(){
-  const el = document.getElementById("queueInfo");
-  if(!el) return;
-  el.textContent = `待機：${q.length} / 進行：${inFlight}`;
-}
-
-async function pumpQueue(){
-  while(inFlight < CONCURRENCY && q.length){
-    const job = q.shift();
-    inFlight++;
-    updateQueueInfo();
-    runJob(job).finally(()=>{
-      inFlight--;
-      updateQueueInfo();
-      // keep pumping
-      setTimeout(pumpQueue, 0);
-    });
-  }
-}
-
-async function runJob(job){
-  const it = items.find(x=>x.id === job.itemId);
-  if(!it) return;
-  const wKey = norm(it.word);
-
-  // cache hit
-  if(cache[wKey]){
-    Object.assign(it, cache[wKey], { status: "ok", updatedAt: now() });
-    it.tags = job.options.autoTag ? autoTagsFor(it) : (it.tags || []);
-    saveDebounced();
-    renderList();
-    return;
-  }
-
-  // lookup english
-  try{
-    const en = await lookupEN(it.word);
-    const pack = {
-      phonetic: en.phonetic || "",
-      part: en.part || "",
-      defs: en.defs || [],
-      synonyms: en.synonyms || [],
-      example: en.example || "",
-      status: "ok",
-      updatedAt: now()
-    };
-
-    // optional jp (best-effort)
-    if(job.options.jpAuto){
-      const base = (pack.defs?.[0] || "").slice(0, 180);
-      const jp = base ? await translateToJP(base) : "";
-      pack.jp = jp || "";
-    }
-
-    Object.assign(it, pack);
-    it.tags = job.options.autoTag ? autoTagsFor(it) : (it.tags || []);
-    cache[wKey] = {
-      phonetic: it.phonetic,
-      part: it.part,
-      defs: it.defs,
-      synonyms: it.synonyms,
-      example: it.example,
-      jp: it.jp || ""
-    };
-    saveDebounced();
-    renderList();
-  }catch(e){
-    it.status = "fail";
-    it.updatedAt = now();
-    saveDebounced();
-    renderList();
-  }
-}
-
-/* =========
-   Add words (bulk & single)
-   ========= */
-function addWords(words, options){
-  const existing = new Set(items.map(x=>norm(x.word)));
-  let added = 0;
-
-  for(const w of words){
-    const k = norm(w);
-    if(!k || existing.has(k)) continue;
-    existing.add(k);
-    const it = makeBlankItem(w);
-    items.unshift(it);
-    enqueue(it.id, options);
-    added++;
-  }
-
-  saveDebounced();
-  renderList(true);
-  if(added) toast(`追加：${added}語（裏で取得中）`);
-  else toast("追加する単語がない");
-}
-
-document.getElementById("btnPasteAdd").addEventListener("click", ()=>{
-  const text = document.getElementById("pasteArea").value;
-  const words = extractWords(text);
-  const options = {
-    jpAuto: document.getElementById("jpAuto").checked,
-    autoTag: document.getElementById("autoTag").checked
-  };
-  addWords(words, options);
-});
-
-document.getElementById("btnPasteClear").addEventListener("click", ()=>{
-  document.getElementById("pasteArea").value = "";
-});
-
-document.getElementById("btnOneAdd").addEventListener("click", ()=>{
-  const w = document.getElementById("oneWord").value.trim();
-  if(!w) return;
-  const words = extractWords(w);
-  const options = {
-    jpAuto: document.getElementById("jpAuto").checked,
-    autoTag: document.getElementById("autoTag").checked
-  };
-  addWords(words, options);
-  document.getElementById("oneWord").value = "";
-});
-
-document.getElementById("oneWord").addEventListener("keydown", (e)=>{
-  if(e.key==="Enter") document.getElementById("btnOneAdd").click();
-});
-
-/* =========
-   List render (fast: pagination + collapsible)
-   ========= */
-const listEl = document.getElementById("list");
-const k_total = document.getElementById("k_total");
-const k_due = document.getElementById("k_due");
-const k_pending = document.getElementById("k_pending");
-const k_today = document.getElementById("k_today");
-
-let shown = 0;
-
-function isDue(it){ return (it.nextDue || 0) <= now(); }
-function todayKey(){
-  const d = new Date();
-  return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
-}
-function reviewedTodayCount(){
-  const key = todayKey();
-  const map = meta.reviewedToday || {};
-  const ids = map[key] || [];
-  return ids.length;
-}
-
-function applyFilters(arr){
-  const qText = norm(document.getElementById("search").value);
-  const dueMode = document.getElementById("filterDue").value; // all/due
-  const lvl = document.getElementById("filterLevel").value;   // all/0..4
-  const tagf = norm(document.getElementById("tagFilter").value);
-
-  return arr.filter(it=>{
-    if(dueMode==="due" && !isDue(it)) return false;
-    if(lvl!=="all" && String(it.level) !== lvl) return false;
-
-    if(tagf){
-      // user can type "#論理 #抽象" etc -> all tokens must be included
-      const tokens = tagf.split(/\s+/).filter(Boolean);
-      const tags = (it.tags||[]).map(norm);
-      for(const t of tokens){
-        if(!tags.includes(norm(t))) return false;
-      }
-    }
-
-    if(!qText) return true;
-    const hay = norm([
-      it.word, it.phonetic, it.part,
-      (it.defs||[]).join(" "),
-      (it.synonyms||[]).join(" "),
-      it.example, it.jp, it.note,
-      (it.tags||[]).join(" ")
-    ].join(" "));
-    return hay.includes(qText);
-  });
-}
-
-function sortItems(arr){
-  const mode = document.getElementById("sortBy").value;
-  const a = [...arr];
-  if(mode==="new") a.sort((x,y)=> (y.createdAt||0)-(x.createdAt||0));
-  if(mode==="old") a.sort((x,y)=> (x.createdAt||0)-(y.createdAt||0));
-  if(mode==="due") a.sort((x,y)=> (x.nextDue||0)-(y.nextDue||0));
-  if(mode==="alpha") a.sort((x,y)=> norm(x.word).localeCompare(norm(y.word)));
-  return a;
-}
-
-function esc(s){
-  return (s||"").toString().replace(/[&<>"']/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
-}
-
-function renderKPI(){
-  k_total.textContent = items.length;
-  k_due.textContent = items.filter(isDue).length;
-  k_pending.textContent = items.filter(x=>x.status==="pending").length;
-  k_today.textContent = reviewedTodayCount();
-}
-
-function renderList(reset=false){
-  renderKPI();
-  if(reset){ shown = 0; }
-  const page = Number(document.getElementById("pageSize").value || 30);
-
-  const filtered = sortItems(applyFilters(items));
-  const slice = filtered.slice(0, shown + page);
-  const moreLeft = filtered.length > slice.length;
-  shown = slice.length;
-
-  listEl.innerHTML = "";
-  if(slice.length===0){
-    const d = document.createElement("div");
-    d.className = "card";
-    d.innerHTML = `<div class="hint">対象が空っぽっぽい（検索・絞り込みを解除すると出る）</div>`;
-    listEl.appendChild(d);
-    return;
-  }
-
-  for(const it of slice){
-    const due = isDue(it);
-    const badge = due ? "期限" : "次回";
-    const dueText = it.nextDue ? new Date(it.nextDue).toLocaleString() : "-";
-    const statusTxt = it.status==="pending" ? "取得中…" : (it.status==="fail" ? "未取得" : "OK");
-
-    const card = document.createElement("div");
-    card.className = "card";
-
-    const defsHtml = (it.defs && it.defs.length)
-      ? `<ul>${it.defs.map(d=>`<li>${esc(d)}</li>`).join("")}</ul>`
-      : `<div class="hint muted">定義なし（未取得 or 手メモで補完OK）</div>`;
-
-    const synHtml = (it.synonyms && it.synonyms.length)
-      ? `<div class="hint">${it.synonyms.slice(0,8).map(s=>`<span class="chip">${esc(s)}</span>`).join(" ")}</div>`
-      : `<div class="hint muted">類語なし</div>`;
-
-    const tagHtml = (it.tags && it.tags.length)
-      ? it.tags.map(t=>`<span class="badge">${esc(t)}</span>`).join(" ")
-      : `<span class="badge">タグなし</span>`;
-
-    const jpLine = it.jp ? `<div class="flashJP">${esc(it.jp)}</div>` : `<div class="hint muted">日本語：空（必要ならメモで補足）</div>`;
-
-    card.innerHTML = `
-      <div class="wordLine">
-        <div>
-          <div class="word">${esc(it.word)}</div>
-          <div class="meta">
-            <span class="badge">暗記度 ${it.level}</span>
-            <span class="badge">${badge}：${esc(dueText)}</span>
-            <span class="badge">${esc(statusTxt)}</span>
-            ${it.part ? `<span class="badge">${esc(it.part)}</span>` : ""}
+        <div style="height:12px"></div>
+        <div class="two">
+          <div class="card innerCard">
+            <div style="font-weight:950">1語だけ追加</div>
+            <div class="small">入力→追加（重複は統合）</div>
+            <div style="height:10px"></div>
+            <div class="row">
+              <input id="oneWord" placeholder="例: claim" autocomplete="off" />
+              <button id="oneAdd">追加</button>
+            </div>
+          </div>
+          <div class="card innerCard">
+            <div style="font-weight:950">取得の仕様</div>
+            <div class="small">
+              定義/類語/例文：DictionaryAPI（無料）<br>
+              和訳：MyMemory翻訳（無料）<br>
+              混雑や電波で揺れる前提 → 失敗理由と再取得あり
+            </div>
           </div>
         </div>
-        <div class="right">
-          ${tagHtml}
+      </div>
+    </section>
+
+    <!-- FLASH -->
+    <section id="sec_flash" class="section">
+      <div class="card">
+        <div class="filters">
+          <select id="flashScope">
+            <option value="due">出題：期限のみ</option>
+            <option value="all">出題：全部</option>
+          </select>
+
+          <select id="flashLevel">
+            <option value="all">暗記度：全部</option>
+            <option value="0">暗記度：0</option>
+            <option value="0-1">暗記度：0-1</option>
+            <option value="0-2">暗記度：0-2</option>
+          </select>
+
+          <select id="flashOrder">
+            <option value="shuffle">順番：シャッフル</option>
+            <option value="due">順番：期限順</option>
+            <option value="new">順番：新しい順</option>
+          </select>
+
+          <select id="flashCount">
+            <option value="10">出題数：10</option>
+            <option value="20" selected>出題数：20</option>
+            <option value="30">出題数：30</option>
+            <option value="50">出題数：50</option>
+            <option value="100">出題数：100</option>
+          </select>
+
+          <button class="secondary" id="openRules">ルール</button>
+        </div>
+
+        <div class="small" style="margin-top:10px">
+          単語だけ表示 →「答え」or評価で和訳が出る（英語定義は詳細）。キー：Space=答え、1/2/3/4=評価
         </div>
       </div>
 
-      <div class="collapse">
-        <div class="miniTitle">定義</div>
-        ${defsHtml}
+      <div style="height:12px"></div>
 
-        <div class="miniTitle">類語</div>
-        ${synHtml}
-
-        <div class="miniTitle">日本語（任意）</div>
-        ${jpLine}
-
-        ${it.example ? `<div class="miniTitle">例文</div><div class="hint">${esc(it.example)}</div>` : ``}
-
-        <div class="line"></div>
-
-        <div class="grid2">
+      <div class="card" id="flashCard">
+        <div class="wordLine">
           <div>
-            <div class="miniTitle">メモ</div>
-            <input data-note="${it.id}" placeholder="自分用メモ（任意）" value="${esc(it.note||"")}" />
+            <div class="word" id="fWord">—</div>
+            <div class="small" id="fMeta">—</div>
           </div>
-          <div>
-            <div class="miniTitle">タグ（スペース区切り）</div>
-            <input data-tags="${it.id}" placeholder="#論理 #抽象 #動詞" value="${esc((it.tags||[]).join(" "))}" />
-          </div>
+          <span class="chip" id="fLvl"><span class="dot"></span><span>暗記度 0</span></span>
         </div>
 
-        <div class="row" style="margin-top:10px;">
-          <button class="btn ghost" data-retry="${it.id}">再取得</button>
-          <button class="btn ghost" data-lvdown="${it.id}">暗記度↓</button>
-          <button class="btn ghost" data-lvup="${it.id}">暗記度↑</button>
-          <button class="btn danger" data-del="${it.id}">削除</button>
+        <div class="fold">
+          <details id="fDetails">
+            <summary>答え（和訳）</summary>
+            <div id="fBody" style="margin-top:10px"></div>
+
+            <div style="height:10px"></div>
+            <details id="fMore">
+              <summary class="small">詳細（英語定義 / 類語 / 例文）</summary>
+              <div id="fMoreBody" style="margin-top:10px"></div>
+            </details>
+          </details>
+        </div>
+
+        <div style="height:12px"></div>
+
+        <div class="two">
+          <button class="secondary" id="btnAgain">1 未習得</button>
+          <button class="secondary" id="btnHard">2 不確か</button>
+          <button class="secondary" id="btnGood">3 習得</button>
+          <button id="btnEasy">4 定着</button>
+        </div>
+
+        <div style="height:10px"></div>
+        <div class="row">
+          <button class="ghost" id="btnReveal">Space 答え</button>
+          <button class="secondary" id="btnNext">次へ</button>
         </div>
       </div>
-    `;
-    listEl.appendChild(card);
-  }
 
-  // bind actions
-  document.querySelectorAll("[data-del]").forEach(btn=>{
-    btn.addEventListener("click", ()=>{
-      const id = btn.getAttribute("data-del");
-      items = items.filter(x=>x.id !== id);
-      saveDebounced();
-      renderList(true);
-      toast("削除した");
-    });
-  });
+      <div style="height:12px"></div>
 
-  document.querySelectorAll("[data-note]").forEach(inp=>{
-    inp.addEventListener("input", ()=>{
-      const id = inp.getAttribute("data-note");
-      const it = items.find(x=>x.id===id);
-      if(!it) return;
-      it.note = inp.value;
-      it.updatedAt = now();
-      saveDebounced();
-    });
-  });
+      <div class="card" id="flashEnd" style="display:none;">
+        <div style="font-weight:950;font-size:16px">終了</div>
+        <div class="small" style="margin-top:6px">出題数ぶん完了。</div>
 
-  document.querySelectorAll("[data-tags]").forEach(inp=>{
-    inp.addEventListener("change", ()=>{
-      const id = inp.getAttribute("data-tags");
-      const it = items.find(x=>x.id===id);
-      if(!it) return;
-      const t = (inp.value||"").trim();
-      const tags = t ? t.split(/\s+/).filter(Boolean) : [];
-      // normalize: ensure starts with #
-      it.tags = tags.map(x=> x.startsWith("#") ? x : ("#"+x));
-      it.updatedAt = now();
-      saveDebounced();
-      renderList();
-      toast("タグ更新");
-    });
-  });
+        <div style="height:10px"></div>
+        <div class="kpi">
+          <div class="box"><div class="n" id="endTotal">0</div><div class="t">出題数</div></div>
+          <div class="box"><div class="n" id="endRated">0</div><div class="t">評価済</div></div>
+        </div>
 
-  document.querySelectorAll("[data-lvup]").forEach(btn=>{
-    btn.addEventListener("click", ()=>{
-      const id = btn.getAttribute("data-lvup");
-      const it = items.find(x=>x.id===id);
-      if(!it) return;
-      it.level = Math.min(4, (it.level||0)+1);
-      it.nextDue = now() + INTERVALS[it.level];
-      it.updatedAt = now();
-      saveDebounced();
-      renderList();
-      toast(`暗記度 ${it.level}`);
-    });
-  });
+        <div style="height:12px"></div>
+        <div class="row">
+          <button id="endRestart">もう一回</button>
+          <button class="secondary" id="endBack">設定に戻る</button>
+        </div>
+      </div>
 
-  document.querySelectorAll("[data-lvdown]").forEach(btn=>{
-    btn.addEventListener("click", ()=>{
-      const id = btn.getAttribute("data-lvdown");
-      const it = items.find(x=>x.id===id);
-      if(!it) return;
-      it.level = Math.max(0, (it.level||0)-1);
-      it.nextDue = now(); // review soon
-      it.updatedAt = now();
-      saveDebounced();
-      renderList();
-      toast(`暗記度 ${it.level}`);
-    });
-  });
+      <div style="height:12px"></div>
+      <div class="card">
+        <div class="small">
+          残り：<b id="fRemain">0</b> / 出題対象：<b id="fTotal">0</b>
+        </div>
+      </div>
+    </section>
 
-  document.querySelectorAll("[data-retry]").forEach(btn=>{
-    btn.addEventListener("click", ()=>{
-      const id = btn.getAttribute("data-retry");
-      const it = items.find(x=>x.id===id);
-      if(!it) return;
-      it.status = "pending";
-      it.updatedAt = now();
-      saveDebounced();
-      const options = {
-        jpAuto: document.getElementById("jpAuto")?.checked || false,
-        autoTag: document.getElementById("autoTag")?.checked ?? true
-      };
-      enqueue(it.id, options);
-      toast("再取得キューへ");
-      renderList();
-    });
-  });
+    <!-- MANAGE -->
+    <section id="sec_manage" class="section">
+      <div class="card">
+        <div class="row">
+          <button class="secondary" id="exportBtn">エクスポート（コピー）</button>
+          <button class="secondary" id="importBtn">インポート</button>
+          <button class="secondary" id="backupBtn">バックアップ復元</button>
+          <button class="secondary" id="openTutorial">チュートリアル</button>
+        </div>
 
-  const moreBtn = document.getElementById("btnMore");
-  moreBtn.disabled = !moreLeft;
-  moreBtn.textContent = moreLeft ? "続き表示" : "全部表示中";
-}
+        <div style="height:10px"></div>
+        <div class="kpi">
+          <div class="box"><div class="n" id="kAll">0</div><div class="t">全単語（現役）</div></div>
+          <div class="box"><div class="n" id="kTrash">0</div><div class="t">ゴミ箱</div></div>
+          <div class="box"><div class="n" id="kDue">0</div><div class="t">期限あり</div></div>
+        </div>
+      </div>
 
-document.getElementById("btnMore").addEventListener("click", ()=>renderList(false));
-["search","filterDue","filterLevel","sortBy","tagFilter","pageSize"].forEach(id=>{
-  document.getElementById(id).addEventListener("input", ()=>renderList(true));
-  document.getElementById(id).addEventListener("change", ()=>renderList(true));
-});
+      <div style="height:12px"></div>
 
-/* =========
-   Flash
-   ========= */
-let flashDeck = [];
-let flashIndex = 0;
-let flashStarted = false;
+      <div class="card">
+        <div style="font-weight:950">ゴミ箱</div>
+        <div class="small">削除はここに入る。復元できる。</div>
+        <div style="height:10px"></div>
+        <div class="row">
+          <button class="secondary" id="restoreAll">全部復元</button>
+          <button class="danger" id="emptyTrashHold">完全削除（長押し2秒）</button>
+        </div>
+        <div class="holdHint" id="holdHint" style="margin-top:8px;display:none;">2秒長押し → 確認入力 → 完全削除</div>
+        <div style="height:10px"></div>
+        <div id="trashList"></div>
+      </div>
 
-function buildFlashDeck(){
-  const mode = document.getElementById("flashMode").value; // due/all
-  const lvl = document.getElementById("flashLevel").value; // all/0..4
-  let arr = items.filter(it => it.status !== "pending"); // pending is okay too, but better to avoid
-  if(mode==="due") arr = arr.filter(isDue);
-  if(lvl!=="all") arr = arr.filter(it => String(it.level) === lvl);
+      <div style="height:12px"></div>
 
-  // fallback: if empty, allow pending/empty
-  if(arr.length===0){
-    arr = items.slice();
-    if(mode==="due") arr = arr.filter(isDue);
-    if(lvl!=="all") arr = arr.filter(it => String(it.level) === lvl);
-  }
-  // shuffle
-  arr = [...arr];
-  for(let i=arr.length-1;i>0;i--){
-    const j = Math.floor(Math.random()*(i+1));
-    [arr[i],arr[j]] = [arr[j],arr[i]];
-  }
-  return arr;
-}
+      <div class="card dangerZone">
+        <div style="font-weight:950">危険操作</div>
+        <div class="small">全消去はゴミ箱へ（Undoあり）。</div>
+        <div style="height:10px"></div>
+        <button class="danger" id="softClear">全消去（ゴミ箱へ）</button>
+      </div>
+    </section>
+  </div>
 
-function markReviewed(it){
-  const key = todayKey();
-  meta.reviewedToday = meta.reviewedToday || {};
-  meta.reviewedToday[key] = meta.reviewedToday[key] || [];
-  if(!meta.reviewedToday[key].includes(it.id)) meta.reviewedToday[key].push(it.id);
-}
+  <!-- TOAST -->
+  <div class="toast" id="toast">
+    <div class="top">
+      <div class="msg" id="toastMsg">—</div>
+      <div class="actions">
+        <button class="secondary" id="toastUndo">取り消し</button>
+        <button class="ghost" id="toastClose">閉じる</button>
+      </div>
+    </div>
+    <div class="small" id="toastSub" style="margin-top:6px"></div>
+  </div>
 
-function rate(it, delta){
-  // delta: -1..+2 mapped to buttons
-  // 0: unknown -> level down, due now
-  // 1: ok -> level same or up
-  if(delta <= -1){
-    it.level = Math.max(0, (it.level||0) - 1);
-    it.nextDue = now();
-  }else if(delta === 0){
-    it.nextDue = now() + Math.max(0.25*DAY, INTERVALS[it.level] * 0.5);
-  }else if(delta === 1){
-    it.level = Math.min(4, (it.level||0) + 1);
-    it.nextDue = now() + INTERVALS[it.level];
-  }else{
-    it.level = Math.min(4, (it.level||0) + 2);
-    it.nextDue = now() + INTERVALS[it.level];
-  }
-  it.lastReviewed = now();
-  it.updatedAt = now();
-  markReviewed(it);
-  saveDebounced();
-  renderKPI();
-}
-
-function renderFlash(){
-  const area = document.getElementById("flashArea");
-  if(!flashDeck.length){
-    area.innerHTML = `<div class="muted">出題が空。まず単語を追加するか、モードを「全部」にしてね。</div>`;
-    return;
-  }
-  const it = flashDeck[flashIndex % flashDeck.length];
-
-  const defLine = (it.defs && it.defs.length) ? it.defs[0] : "";
-  const jpLine = it.jp || "";
-
-  area.innerHTML = `
-    <div class="meta" style="justify-content:center; margin-bottom:10px;">
-      <span class="badge">暗記度 ${it.level}</span>
-      <span class="badge">${isDue(it) ? "期限" : "次回"}：${it.nextDue ? new Date(it.nextDue).toLocaleString() : "-"}</span>
-      <span class="badge">${flashIndex+1} / ${flashDeck.length}</span>
+  <!-- RULE SHEET -->
+  <div class="ruleSheet" id="ruleSheet">
+    <div class="row" style="align-items:flex-start">
+      <div style="flex:1">
+        <div style="font-weight:950;font-size:16px">学習ルール</div>
+        <div class="small">評価に応じて暗記度と次回期限が動く。</div>
+      </div>
+      <button class="secondary" id="closeRules" style="flex:0 0 auto">閉じる</button>
     </div>
 
-    <div class="flashWord">${esc(it.word)}</div>
-    ${jpLine ? `<div class="flashJP">${esc(jpLine)}</div>` : ``}
-    ${defLine ? `<div class="flashDefs">${esc(defLine)}</div>` : `<div class="flashDefs muted">（定義は未取得/空）</div>`}
+    <table>
+      <thead>
+        <tr><th>評価</th><th>暗記度</th><th>次回</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>未習得</td><td>そのまま（最低0）</td><td>+10分</td></tr>
+        <tr><td>不確か</td><td>+1（最大4）</td><td>+1日</td></tr>
+        <tr><td>習得</td><td>+1（最大4）</td><td>+3日</td></tr>
+        <tr><td>定着</td><td>+1（最大4）</td><td>+7日（暗記度4なら +14日）</td></tr>
+      </tbody>
+    </table>
+  </div>
 
-    <div class="rateRow">
-      <button class="btn danger" id="r0">知らん</button>
-      <button class="btn ghost" id="r1">微妙</button>
-      <button class="btn ghost" id="r2">OK</button>
-      <button class="btn" id="r3">余裕</button>
+  <!-- TUTORIAL -->
+  <div id="tutorial" class="ruleSheet" style="z-index:200;">
+    <div class="row" style="align-items:flex-start">
+      <div style="flex:1">
+        <div style="font-weight:950;font-size:16px">最初に1分だけ</div>
+        <div class="small">スキップOK。あとから「管理」でも開ける。</div>
+      </div>
+      <button class="secondary" id="tutSkip" style="flex:0 0 auto">スキップ</button>
     </div>
 
-    <div class="row" style="margin-top:10px;">
-      <button class="btn ghost" id="prev">←</button>
-      <button class="btn ghost" id="toggle">詳細</button>
-      <button class="btn ghost" id="next">→</button>
+    <div style="height:10px"></div>
+
+    <div class="card innerCard">
+      <div id="tutPageTitle" style="font-weight:950;font-size:15px">① 貼る→取得</div>
+      <div id="tutPageBody" class="small" style="margin-top:8px;line-height:1.7">
+        「貼る」に単語をまとめて貼る。端末に保存され、裏で和訳を取る。
+      </div>
     </div>
 
-    <div id="detail" class="collapse" style="display:none; text-align:left;">
-      <div class="miniTitle">定義</div>
-      ${(it.defs && it.defs.length) ? `<ul>${it.defs.map(d=>`<li>${esc(d)}</li>`).join("")}</ul>` : `<div class="hint muted">空</div>`}
-
-      <div class="miniTitle">類語</div>
-      ${(it.synonyms && it.synonyms.length) ? `<div class="hint">${it.synonyms.slice(0,8).map(s=>`<span class="chip">${esc(s)}</span>`).join(" ")}</div>` : `<div class="hint muted">空</div>`}
-
-      ${it.example ? `<div class="miniTitle">例文</div><div class="hint">${esc(it.example)}</div>` : ``}
-      <div class="miniTitle">メモ</div>
-      <input id="flashNote" value="${esc(it.note||"")}" placeholder="メモ（任意）" />
+    <div style="height:10px"></div>
+    <div class="row">
+      <button class="secondary" id="tutPrev">戻る</button>
+      <button id="tutNext">次へ</button>
     </div>
-  `;
 
-  const bind = (id, fn)=>document.getElementById(id).addEventListener("click", fn);
+    <div class="small" style="margin-top:10px">
+      和訳がある単語だけがフラッシュに出る（和訳必須）。
+    </div>
+  </div>
 
-  bind("r0", ()=>{ rate(it, -1); flashIndex++; renderFlash(); });
-  bind("r1", ()=>{ rate(it, 0);  flashIndex++; renderFlash(); });
-  bind("r2", ()=>{ rate(it, 1);  flashIndex++; renderFlash(); });
-  bind("r3", ()=>{ rate(it, 2);  flashIndex++; renderFlash(); });
-
-  bind("prev", ()=>{ flashIndex = (flashIndex - 1 + flashDeck.length) % flashDeck.length; renderFlash(); });
-  bind("next", ()=>{ flashIndex = (flashIndex + 1) % flashDeck.length; renderFlash(); });
-
-  bind("toggle", ()=>{
-    const d = document.getElementById("detail");
-    d.style.display = (d.style.display==="none") ? "" : "none";
-  });
-
-  const note = document.getElementById("flashNote");
-  if(note){
-    note.addEventListener("input", ()=>{
-      it.note = note.value;
-      it.updatedAt = now();
-      saveDebounced();
-    });
-  }
-}
-
-document.getElementById("btnStartFlash").addEventListener("click", ()=>{
-  flashDeck = buildFlashDeck();
-  flashIndex = 0;
-  flashStarted = true;
-  renderFlash();
-});
-
-document.getElementById("btnShuffle").addEventListener("click", ()=>{
-  flashDeck = buildFlashDeck();
-  flashIndex = 0;
-  if(flashStarted) renderFlash();
-  toast("シャッフルした");
-});
-
-/* =========
-   Manage: export/import/clear
-   ========= */
-document.getElementById("btnExport").addEventListener("click", async ()=>{
-  const payload = JSON.stringify({ items, cache }, null, 2);
-  try{
-    await navigator.clipboard.writeText(payload);
-    toast("エクスポート（クリップボード）");
-  }catch(e){
-    window.prompt("これをコピーして保存して:", payload);
-  }
-});
-
-document.getElementById("btnImport").addEventListener("click", ()=>{
-  const txt = window.prompt("エクスポートしたJSONを貼り付けてOK:");
-  if(!txt) return;
-  try{
-    const obj = JSON.parse(txt);
-    if(!obj || !Array.isArray(obj.items)) throw new Error();
-    items = obj.items;
-    cache = obj.cache || {};
-    saveDebounced();
-    renderList(true);
-    toast("インポート完了");
-  }catch(e){
-    toast("形式が違うっぽい");
-  }
-});
-
-document.getElementById("btnClearAll").addEventListener("click", ()=>{
-  const ok = confirm("全消去する？（元に戻せない）");
-  if(!ok) return;
-  items = [];
-  cache = {};
-  meta = { reviewedToday: {} };
-  saveDebounced();
-  renderList(true);
-  toast("全消去した");
-});
-
-/* =========
-   PWA: service worker
-   ========= */
-if("serviceWorker" in navigator){
-  window.addEventListener("load", ()=>{
-    navigator.serviceWorker.register("./sw.js").catch(()=>{});
-  });
-}
-
-/* =========
-   Init
-   ========= */
-renderList(true);
-updateQueueInfo();
-</script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>
